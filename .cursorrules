@@ -1,0 +1,23 @@
+{
+    "rules": [
+        {
+            "pattern": "src/chewdoc",
+            "hints": [
+                "Follow PEP8 standards",
+                "Use absolute imports",
+                "Validate AST nodes before processing",
+                "Check for __init__.py files in package detection",
+                "Use pathlib for path operations"
+            ]
+        },
+        {
+            "pattern": "tests/",
+            "hints": [
+                "Use pytest fixtures for package mocking",
+                "Test both local and PyPI package paths",
+                "Verify MyST output structure",
+                "Check error handling for invalid packages"
+            ]
+        }
+    ]
+} 

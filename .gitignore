@@ -1,0 +1,27 @@
+# Development
+.venv/
+.env
+*.swp
+*.swo
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log 
+.git_archival.txt
+.gitattributes

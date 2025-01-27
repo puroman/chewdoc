@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=45"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chewdoc"
+version = "0.1.0"
+description = "Makes docs that both AI and humans can easily understand and work with"
+authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.25.1",
+    "tomli>=0.10.2",
+    "rich>=10.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest >=7.0",
+    "pytest-cov >=4.0",
+    "flake8 >=6.0",
+    "black >=23.0"
+]
+
+[tool.setuptools.packages]
+find = {}
