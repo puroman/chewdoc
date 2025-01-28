@@ -137,48 +137,39 @@ def analyze_package(
 
 
 def process_modules(package_path: Path, config: ChewdocConfig) -> list:
-    """Process Python modules in a package directory.
-
-    Recursively discovers and analyzes Python modules in the package,
-    excluding files matching EXCLUDE_PATTERNS.
-
-    Args:
-        package_path: Root directory of the package
-        config: Configuration object
-
-    Returns:
-        List of module data dictionaries containing:
-        - name: Full module name
-        - path: Module file path
-        - ast: Parsed AST
-        - internal_deps: List of internal dependencies
-    """
+    """Process Python modules in a package directory."""
     modules = []
+    module_names = set()
+    
+    # First pass to collect module names
     for file_path in package_path.rglob("*.py"):
-        if any(
-            fnmatch.fnmatch(part, pattern)
-            for part in file_path.parts
-            for pattern in config.exclude_patterns
-        ):
+        if any(fnmatch.fnmatch(part, pattern) for part in file_path.parts for pattern in config.exclude_patterns):
             continue
-
-        module_data = {
-            "name": _get_module_name(file_path, package_path),
+        module_name = _get_module_name(file_path, package_path)
+        module_names.add(module_name)
+        modules.append({
+            "name": module_name,
             "path": str(file_path),
             "ast": parse_ast(file_path),
-            "internal_deps": [],
+            "internal_deps": set(),
             "imports": [],
-        }
+        })
 
-        # Only track internal dependencies
-        all_imports = _find_imports(module_data["ast"], package_path.name)
-        module_names = {m["name"] for m in modules}
-        module_data["internal_deps"] = [
-            imp["full_path"] for imp in all_imports if imp["full_path"] in module_names
-        ]
-        module_data["imports"] = all_imports
-
-        modules.append(module_data)
+    # Second pass to analyze dependencies
+    for module in modules:
+        all_imports = _find_imports(module["ast"], package_path.name)
+        for imp in all_imports:
+            if imp["type"] == "internal":
+                # Find the actual module being imported
+                parts = imp["full_path"].split(".")
+                for i in range(len(parts), 0, -1):
+                    candidate = ".".join(parts[:i])
+                    if candidate in module_names and candidate != module["name"]:
+                        module["internal_deps"].add(candidate)
+                        break
+        
+        module["internal_deps"] = sorted(module["internal_deps"])
+        module["imports"] = all_imports
 
     return modules
 
@@ -617,18 +608,13 @@ def _analyze_relationships(modules: list, package_name: str) -> dict:
     relationship_map = defaultdict(set)
 
     for module in modules:
-        for imp in module["imports"]:
-            if imp["type"] == "internal":
-                relationship_map[module["name"]].add(imp["full_path"])
+        for dep in module["internal_deps"]:
+            relationship_map[module["name"]].add(dep)
 
     return {
-        "dependency_graph": relationship_map,
+        "dependency_graph": {k: sorted(v) for k, v in relationship_map.items()},
         "reverse_dependencies": {
-            target: {
-                source
-                for source, targets in relationship_map.items()
-                if target in targets
-            }
+            target: sorted({source for source, targets in relationship_map.items() if target in targets})
             for target in set().union(*relationship_map.values())
         },
     }

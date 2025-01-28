@@ -260,5 +260,23 @@ def test_constants_extraction(tmp_path):
     )
     result = analyze_package(str(pkg_dir), is_local=True)
     constants_module = next(m for m in result["modules"] if m["name"] == "testpkg.constants")
-    assert ("API_URL", '"https://api.example.com"') in constants_module["constants"]
-    assert "DEBUG" in [c[0] for c in constants_module["constants"]]
+    
+    # Updated assertions for dictionary format
+    assert "API_URL" in constants_module["constants"]
+    assert constants_module["constants"]["API_URL"]["value"] == '"https://api.example.com"'
+    assert "DEBUG" in constants_module["constants"]
+    assert constants_module["constants"]["DEBUG"]["value"] == "False"
+
+
+def test_module_dependencies(tmp_path):
+    pkg_dir = tmp_path / "testpkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text('"""Test package"""')
+    (pkg_dir / "config.py").write_text('from .constants import DEFAULT_EXCLUSIONS')
+    (pkg_dir / "constants.py").write_text('DEFAULT_EXCLUSIONS = [".venv"]')
+
+    result = analyze_package(str(pkg_dir), is_local=True)
+    config_module = next(m for m in result["modules"] if m["name"] == "testpkg.config")
+    
+    assert "testpkg.constants" in config_module["internal_deps"]
+    assert "DEFAULT_EXCLUSIONS" not in config_module["internal_deps"]
