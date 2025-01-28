@@ -18,6 +18,22 @@
                 "Verify MyST output structure",
                 "Check error handling for invalid packages"
             ]
+        },
+        {
+            "pattern": "src/chewdoc/config.py",
+            "hints": [
+                "Validate TOML keys against ChewdocConfig model",
+                "Handle missing config gracefully",
+                "Merge default config with user overrides"
+            ]
+        },
+        {
+            "pattern": "src/chewdoc/formatters/",
+            "hints": [
+                "Sanitize output paths before writing",
+                "Validate template variables before rendering",
+                "Handle missing examples gracefully"
+            ]
         }
     ]
 } 

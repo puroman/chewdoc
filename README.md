@@ -15,9 +15,7 @@ Intelligent documentation generator that creates LLM-optimized documentation wit
 - **Configurable**: Control through `pyproject.toml` or programmatic API
 - **Dependency Mapping**: Visualize module relationships with Mermaid diagrams
 
-## Installation :package:
-
-```bash
+## Installation :package:```bash
 # Install with UV (recommended)
 python3 -m pip install uv
 uv pip install git+https://github.com/puroman/chewdoc.git
@@ -144,3 +142,4 @@ Please follow existing code style and add tests for new features.
 ## License :scroll:
 
 MIT License - See [LICENSE](LICENSE) for details 
+

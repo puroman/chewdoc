@@ -14,7 +14,7 @@ dependencies = [
     "requests>=2.26.0",  # HTTP requests for PyPI API interactions
     "tomli>=2.0.1",  # TOML parsing for pyproject.toml files
     "rich>=12.6.0",  # Enhanced terminal output and formatting
-    "pydantic>=1.10.6"  # Added missing dependency
+    "pydantic>=2.5.0"  # Required for config validation
 ]
 
 [project.optional-dependencies]
