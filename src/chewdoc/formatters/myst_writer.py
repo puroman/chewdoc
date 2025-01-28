@@ -35,8 +35,10 @@ def _format_modules(modules: list) -> str:
     return "\n".join(
         f"## {m.get('name', 'unnamed_module')}\n"
         f"{_format_docstrings(m.get('docstrings', {}))}\n"
-        f"**Exports**: {_format_exports(m.get('types', {}))}\n" 
+        f"**Exports**: {_format_exports(m.get('types', {}))}\n"
         f"**Imports**: {', '.join(m.get('imports', []))}\n"
+        f"{_format_relationships(m)}\n"
+        f"{_format_type_info(m.get('types', {}))}\n"
         for m in modules
     )
 
@@ -51,7 +53,9 @@ def _format_type_info(type_info: Dict[str, Any]) -> str:
     """Ultra-compact type formatting"""
     lines = []
     if refs := type_info.get("cross_references"):
-        lines.append(f"Types: {', '.join(sorted(refs))}")
+        lines.append("### Type References\n" + "\n".join(
+            f"- [[{t}]]" for t in sorted(refs)
+        ))
     
     if funcs := type_info.get("functions"):
         lines.append("Functions: " + ", ".join(
@@ -60,15 +64,18 @@ def _format_type_info(type_info: Dict[str, Any]) -> str:
         ))
     
     if classes := type_info.get("classes"):
-        lines.append("Classes: " + ", ".join(
-            f"{cls}({', '.join(details['attributes'])})"
+        lines.append("### Classes\n" + "\n".join(
+            f"**{cls}**\n" + "\n".join(
+                f"- {attr}: {type_hint}"
+                for attr, type_hint in details.get("attributes", {}).items()
+            )
             for cls, details in classes.items()
         ))
     
     return "\n".join(lines)
 
 def _short_sig(details: dict) -> str:
-    return f"({len(details['args'])} args) -> {details['returns']}"
+    return _format_function_signature(details)
 
 def _format_type_reference(type_str: str) -> str:
     """Format type strings as links when possible"""
