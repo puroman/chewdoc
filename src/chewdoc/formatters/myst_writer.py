@@ -1,13 +1,16 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from chewdoc.constants import (
+from chewdoc.utils import get_annotation, infer_responsibilities
+
+import ast
+
+from src.chewdoc.constants import (
     META_TEMPLATE,
     MODULE_TEMPLATE,
     API_REF_TEMPLATE,
     RELATIONSHIP_TEMPLATE,
 )
-import ast
 
 
 def generate_myst(
@@ -65,29 +68,21 @@ def _format_package_index(package_data: Dict[str, Any]) -> str:
     return "\n".join(content)
 
 
-def _format_module_content(module: Dict[str, Any]) -> str:
-    """Generate comprehensive module documentation with new sections"""
-    content = [
-        f"# {module['name']} Module",
-        f"**Path**: `{module['path']}`",
-        "\n## Module Metadata",
-        _format_module_metadata(module),
-        "\n## Imports",
-        _format_imports(module.get("imports", [])),
-        "\n## Constants",
-        _format_constants(module.get("constants", {})),
-        "\n## API Reference",
-        _format_api_reference(module.get("type_info", {})),
-        "\n## Usage Examples",
-        _format_usage_examples(module.get("examples", [])),
-        "\n## Source Code Structure",
-        _format_code_structure(module.get("ast", {})),
-    ]
-    return "\n".join(content)
+def _format_module_content(module: dict) -> str:
+    """Format module docs with package context"""
+    return MODULE_TEMPLATE.format(
+        name=module["name"],
+        package=module["package"],
+        role_section=_format_role(module),
+        layer_section=_format_architecture_layer(module),
+        description=module.get("description") or infer_responsibilities(module),
+        dependencies=_format_dependencies(module["internal_deps"]),
+        usage_examples=_format_usage_examples(module.get("examples", []))
+    )
 
 
-def _format_imports(imports: list) -> str:
-    """Format imports with type context and source information"""
+def _format_imports(imports: list, package_name: str) -> str:
+    """Format imports using actual package context"""
     categorized = {"stdlib": [], "internal": [], "external": []}
 
     for imp in imports:
@@ -95,7 +90,7 @@ def _format_imports(imports: list) -> str:
         if imp["source"]:
             entry += f" from `{imp['source']}`"
 
-        if imp["full_path"].startswith("chewdoc."):
+        if imp["full_path"].startswith(f"{package_name}."):
             categorized["internal"].append(f"- [[{imp['full_path']}|{entry}]")
         elif "." not in imp["full_path"]:
             categorized["stdlib"].append(f"- {entry}")
@@ -187,190 +182,61 @@ def _format_metadata(package_data: Dict[str, Any]) -> str:
     )
 
 
+def _format_role(module: dict) -> str:
+    """Format module role description"""
+    if "role" in module:
+        return f"- **Role**: {module['role']}"
+    return "- **Role**: General purpose module"
+
+
+def _format_architecture_layer(module: dict) -> str:
+    """Format module architecture layer information"""
+    if "layer" in module:
+        return f"- **Architecture Layer**: {module['layer']}"
+    return "- **Architecture Layer**: Not specified"
+
+
+def _format_dependencies(deps: list) -> str:
+    """Format internal dependencies list"""
+    if not deps:
+        return "No internal dependencies"
+    return "\n".join(f"- [[{dep}]]" for dep in sorted(deps))
+
+
 def _format_modules(modules: list) -> str:
-    """Single-line module summaries with key details"""
-    return "\n".join(
-        f"## {m.get('name', 'unnamed_module')}\n"
-        f"{_format_docstrings(m.get('docstrings', {}))}\n"
-        f"**Exports**: {_format_exports(m.get('types', {}))}\n"
-        f"**Imports**: {', '.join(m.get('imports', []))}\n"
-        f"{_format_relationships(m)}\n"
-        f"{_format_type_info(m.get('types', {}))}\n"
-        for m in modules
-    )
+    """Format module list for index page"""
+    return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
 
-def _format_exports(types: dict) -> str:
-    """Combine all exports in one line"""
-    return ", ".join(
-        [*types.get("functions", {}).keys(), *types.get("classes", {}).keys()]
-    )
-
-
-def _format_type_info(type_info: Dict[str, Any]) -> str:
-    """Ultra-compact type formatting"""
-    lines = []
-    if refs := type_info.get("cross_references"):
-        lines.append(
-            "### Type References\n" + "\n".join(f"- [[{t}]]" for t in sorted(refs))
-        )
-
-    if funcs := type_info.get("functions"):
-        lines.append(
-            "Functions: "
-            + ", ".join(
-                f"{name}{_short_sig(details)}" for name, details in funcs.items()
-            )
-        )
-
-    if classes := type_info.get("classes"):
-        lines.append(
-            "### Classes\n"
-            + "\n".join(
-                f"**{cls}**\n"
-                + "\n".join(
-                    f"- {attr}: {type_hint}"
-                    for attr, type_hint in details.get("attributes", {}).items()
-                )
-                for cls, details in classes.items()
-            )
-        )
-
-    return "\n".join(lines)
-
-
-def _short_sig(details: dict) -> str:
-    return _format_function_signature(details)
-
-
-def _format_type_reference(type_str: str) -> str:
-    """Format type strings as links when possible"""
-    parts = type_str.split("[")
-    base_type = parts[0]
-    if base_type in KNOWN_TYPES:
-        return f"[{type_str}](#{base_type.lower()})"
-    return type_str
-
-
-def _format_function_signature(details: Dict[str, Any]) -> str:
-    """Format complex type signatures"""
-    args = [
-        f"{name}: {_format_type_reference(type)}"
-        for name, type in details["args"].items()
-    ]
-    return_type = _format_type_reference(details["returns"])
-    return f"({', '.join(args)}) -> {return_type}"
-
-
-def _format_docstrings(docstrings: Dict[str, str]) -> str:
-    """Format extracted docstrings"""
-    return "\n".join(
-        f":::{{doc}} {name}\n{doc}\n:::" for name, doc in docstrings.items()
-    )
-
-
-def _format_relationships(module: dict) -> str:
-    """Compact relationship formatting"""
-    deps = [
-        *(f"[[{dep}]]" for dep in module.get("internal_deps", [])),
-        *(
-            f"`{imp}`"
-            for imp in module.get("imports", [])
-            if imp not in module.get("internal_deps", [])
-        ),
-    ]
-    return f"**Dependencies**: {', '.join(deps)}\n" if deps else ""
-
-
-def _compact_imports(imports: list) -> str:
-    """Compact imports formatting"""
-    if not imports:
-        return ""
-
-    return "**Imports**: " + ", ".join(f"`{imp}`" for imp in imports)
-
-
-def _format_module_metadata(module: Dict[str, Any]) -> str:
-    """Format module-level metadata using the template"""
-    try:
-        # Convert timestamp to datetime object first
-        timestamp = Path(module["path"]).stat().st_mtime
-        last_updated = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
-    except (KeyError, FileNotFoundError, OSError):
-        last_updated = "Unknown date"
-
-    # Prepare optional sections
-    role_section = (
-        f"- **Role**: {module.get('role', 'Unspecified')}" if module.get("role") else ""
-    )
-    layer_section = (
-        f"- **Layer**: {module.get('layer', 'Unspecified')}"
-        if module.get("layer")
-        else ""
-    )
-
-    # Format dependencies
-    dependencies = []
-    for imp in module.get("imports", []):
-        if isinstance(imp, dict):
-            name = imp.get("name", "")
-            source = imp.get("source", "")
-            if source:
-                dependencies.append(f"{name} -> {source}")
-            else:
-                dependencies.append(name)
-        else:
-            dependencies.append(str(imp))
-    deps_str = "\n    ".join(dependencies) if dependencies else "No dependencies"
-
-    # Format usage examples
-    examples = []
-    for ex in module.get("examples", []):
-        if isinstance(ex, dict):
-            if ex.get("type") == "doctest":
-                examples.append(ex.get("content", ""))
-            elif ex.get("type") == "pytest":
-                examples.append(ex.get("body", ""))
-        else:
-            examples.append(str(ex))
-    examples_str = "\n\n".join(examples) if examples else "No examples available"
-
-    return MODULE_TEMPLATE.format(
-        name=module["name"],
-        package=module.get("package", "unknown"),
-        description=module.get("docstrings", {})
-        .get("Module:module", {})
-        .get("doc", "No description"),
-        role_section=role_section,
-        layer_section=layer_section,
-        dependencies=deps_str,
-        usage_examples=examples_str,
-    )
-
-
-def _format_constants(constants: Dict[str, Any]) -> str:
-    """Format module constants section"""
-    if not constants:
-        return "No constants defined"
-
-    return "### Constants\n" + "\n".join(
-        f"- `{name}` ({info['type'] or 'inferred'}): {info['value']}"
-        for name, info in constants.items()
-    )
+def _format_function_signature(args: ast.arguments, returns: ast.AST) -> str:
+    """Format function signature with type annotations"""
+    params = []
+    for arg in args.args:
+        name = arg.arg
+        annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+        params.append(f"{name}{': ' + annotation if annotation else ''}")
+    
+    return_type = get_annotation(returns, config) if returns else ""
+    if return_type:
+        return f"({', '.join(params)}) -> {return_type}"
+    return f"({', '.join(params)})"
 
 
 def _format_usage_examples(examples: list) -> str:
-    """Format usage examples section"""
+    """Format usage examples with proper code blocks"""
     if not examples:
-        return "No usage examples found"
-
-    sections = []
-    for ex in examples:
-        if ex["type"] == "doctest":
-            sections.append(f"```python\n{ex['content']}\n```")
-        elif ex["type"] == "pytest":
-            sections.append(
-                f"**Test Case**: {ex['name']}\n```python\n{ex['body']}\n```"
-            )
-
-    return "### Usage Examples\n" + "\n\n".join(sections)
+        return "No usage examples available"
+    
+    formatted = []
+    for idx, example in enumerate(examples, 1):
+        code = example.get("code", "")
+        if not code.strip():
+            continue
+            
+        formatted.append(
+            f"### Example {idx}\n"
+            f"```python\n{code}\n```\n"
+            f"{example.get('description', '')}"
+        )
+    
+    return "\n\n".join(formatted) or "No valid usage examples found"
