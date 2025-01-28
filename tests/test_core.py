@@ -280,3 +280,28 @@ def test_module_dependencies(tmp_path):
     
     assert "testpkg.constants" in config_module["internal_deps"]
     assert "DEFAULT_EXCLUSIONS" not in config_module["internal_deps"]
+
+
+def test_example_extraction(tmp_path):
+    pkg_dir = tmp_path / "testpkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text('"""Test package"""')
+    (pkg_dir / "examples.py").write_text('''
+def example_function():
+    """Example:
+    >>> result = example_function()
+    >>> print(result)
+    42
+    """
+    return 42
+
+def test_usage():
+    assert example_function() == 42
+''')
+
+    result = analyze_package(str(pkg_dir), is_local=True)
+    examples_module = next(m for m in result["modules"] if m["name"] == "testpkg.examples")
+    
+    assert len(examples_module["examples"]) == 2
+    assert any(e["type"] == "doctest" for e in examples_module["examples"])
+    assert any(e["type"] == "pytest" for e in examples_module["examples"])

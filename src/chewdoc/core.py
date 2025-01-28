@@ -548,25 +548,25 @@ def _find_usage_examples(node: ast.AST) -> list:
     examples = []
     
     for n in ast.walk(node):
-        # Detect doctest-style examples
-        if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant):
-            if isinstance(n.value.value, str) and any(
-                trigger in n.value.value 
-                for trigger in ("Example:", "Usage:", ">>>")
-            ):
+        # Detect doctest-style examples in docstrings
+        if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.Module)):
+            docstring = ast.get_docstring(n)
+            if docstring and any(trigger in docstring for trigger in (">>>", "Example:", "Usage:")):
                 examples.append({
                     "type": "doctest",
-                    "content": n.value.value,
+                    "name": f"In {n.name}" if hasattr(n, 'name') else "Module-level",
+                    "content": docstring,
                     "line": n.lineno
                 })
         
-        # Detect test functions
+        # Detect test functions with assert statements
         if isinstance(n, ast.FunctionDef) and n.name.lower().startswith("test"):
+            test_body = "\n".join(ast.unparse(stmt) for stmt in n.body)
             examples.append({
                 "type": "pytest",
                 "name": n.name,
                 "line": n.lineno,
-                "body": ast.unparse(n)
+                "content": f"def {n.name}():\n{test_body}"
             })
     
     return examples
