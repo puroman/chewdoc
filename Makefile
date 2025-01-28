@@ -1,6 +1,7 @@
 VENV = .venv
 PYTHON = $(VENV)/bin/python
 UV = $(VENV)/bin/uv
+DOCS_DIR = docs
 
 .PHONY: venv test clean clear docs lint format
 
@@ -17,9 +18,11 @@ test: venv
 	$(PYTHON) -m pytest -v --cov=src --cov-report=term-missing tests/
 
 doc docs: venv
-	@echo "Generating project documentation..."
-	mkdir -p docs
-	time $(PYTHON) -m chewdoc chew src/ --local --output docs/ --verbose
+	@echo "📚 Generating project documentation..."
+	@mkdir -p $(DOCS_DIR)
+	@echo "🕒 Timing documentation generation..."
+	@time $(PYTHON) -m chewdoc chew src/chewdoc/ --local --output $(DOCS_DIR)/ --verbose
+	@echo "✅ Documentation generated at: $(DOCS_DIR)/"
 
 clean clear:
 	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs $(shell find . -name '__pycache__' -type d)

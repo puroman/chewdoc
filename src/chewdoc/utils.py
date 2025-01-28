@@ -1,6 +1,7 @@
 import ast
 from chewdoc.config import ChewdocConfig
 from typing import Any
+from pathlib import Path
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
@@ -73,12 +74,20 @@ def infer_responsibilities(module: dict) -> str:
     return "\n- ".join([""] + responsibilities)
 
 
-def validate_ast(node: ast.AST) -> None:
+def validate_ast(node: ast.AST, module_path: Path) -> None:
     """Validate AST structure for documentation processing"""
     if not isinstance(node, ast.AST):
         raise TypeError(f"Expected AST node, got {type(node).__name__}")
     if not hasattr(node, 'body'):
         raise ValueError("Invalid AST structure - missing body attribute")
+    
+    # Allow __init__.py files with only pass statements
+    is_init_file = module_path.name == "__init__.py"
+    if is_init_file:
+        if all(isinstance(stmt, ast.Pass) for stmt in node.body):
+            return
+        if not node.body:
+            return
     
     # Check for minimum required elements
     has_elements = any(
@@ -112,3 +121,21 @@ def format_function_signature(args: ast.arguments, returns: ast.AST, config: Che
     if return_type:
         return f"({', '.join(params)}) -> {return_type}"
     return f"({', '.join(params)})"
+
+
+def _find_imports(node: ast.AST) -> list:
+    """Extract import statements from AST"""
+    imports = []
+    
+    class ImportVisitor(ast.NodeVisitor):
+        def visit_Import(self, node):
+            for alias in node.names:
+                imports.append(alias.name)
+                
+        def visit_ImportFrom(self, node):
+            module = node.module or ""
+            for alias in node.names:
+                imports.append(f"{module}.{alias.name}" if module else alias.name)
+    
+    ImportVisitor().visit(node)
+    return imports

@@ -18,6 +18,7 @@ class MystWriter:
 
     def generate(self, package_data: dict, output_path: Path, verbose: bool = False) -> None:
         """Generate structured MyST documentation with separate files"""
+        self.package_data = package_data
         start_time = datetime.now()
         if verbose:
             click.echo(f"📄 Starting MyST generation at {start_time:%H:%M:%S}")
@@ -57,6 +58,7 @@ class MystWriter:
             click.echo(f"Modules: {len(package_data.get('modules', []))}")
             for mod in package_data.get("modules", [])[:3]:
                 click.echo(f"\nModule: {mod['name']}")
+                click.echo(f"Package: {package_data['package']}")
                 click.echo(f"Constants: {list(mod.get('constants', {}).keys())[:3]}...")
                 click.echo(f"Dependencies: {mod.get('internal_deps', [])[:3]}...")
                 click.echo(f"Examples: {len(mod.get('examples', []))}")
@@ -80,7 +82,7 @@ class MystWriter:
         """Format module docs with package context"""
         return MODULE_TEMPLATE.format(
             name=module["name"],
-            package=module["package"],
+            package=self.package_data["package"],
             role_section=self._format_role(module),
             layer_section=self._format_architecture_layer(module),
             description=module.get("description") or infer_responsibilities(module),

@@ -57,12 +57,13 @@ def analyze_package(
         package_info = get_package_metadata(source, version, is_local)
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
+        package_info.setdefault("imports", defaultdict(list))
         package_path = get_package_path(Path(source), is_local)
         package_name = _get_package_name(package_path)
+        package_info["package"] = package_name
 
         if verbose:
-            clean_name = package_name.split(".src.")[-1]
-            click.echo(f"📦 Processing package: {clean_name}")
+            click.echo(f"📦 Processing package: {package_name}")
             click.echo(f"📂 Found {len(package_info.get('modules', []))} modules")
             click.echo("🧠 Processing module ASTs...")
 
@@ -74,22 +75,40 @@ def analyze_package(
         for module_data in module_paths:
             processed += 1
             module_name = module_data["name"]
+            module_path = Path(module_data["path"])
+            
+            # Skip empty __init__.py files before AST parsing
+            if module_path.name == "__init__.py" and module_path.stat().st_size == 0:
+                if verbose:
+                    click.echo(f"⏭️  Skipping empty __init__.py: {module_path}")
+                continue
+            
             if verbose:
                 click.echo(f"🔄 Processing ({processed}/{total_modules}): {module_name}")
             
-            with open(module_data["path"], "r") as f:
-                module_ast = ast.parse(f.read())
+            with open(module_path, "r") as f:
+                try:
+                    module_ast = ast.parse(f.read())
+                except SyntaxError as e:
+                    raise ValueError(f"Syntax error in {module_path}: {e}")
             
-            validate_ast(module_ast)  # Raises meaningful error on invalid AST
+            validate_ast(module_ast, module_path)
             
             module_info = {
                 "name": module_name,
-                "path": module_data["path"],
-                "ast": module_ast,  # Store parsed AST tree
+                "path": str(module_path),  # Store string path for serialization
+                "ast": module_ast,
                 "docstrings": extract_docstrings(module_ast),
                 "types": extract_type_info(module_ast, config),
-                "examples": find_usage_examples(module_ast)
+                "examples": find_usage_examples(module_ast),
+                "imports": _find_imports(module_ast, package_name),
+                "internal_deps": module_data.get("internal_deps", [])
             }
+            
+            # Track imports at package level
+            for imp in module_info["imports"]:
+                package_info["imports"][imp["full_path"]].append(module_name)
+            
             package_info["modules"].append(module_info)
 
         relationships = _analyze_relationships(package_info["modules"], package_name)
@@ -99,20 +118,6 @@ def analyze_package(
             duration = datetime.now() - start_time
             click.echo(f"🏁 Analysis completed in {duration.total_seconds():.3f}s")
             click.echo(f"📊 Processed {len(package_info['modules'])} modules")
-
-        for file_path in package_path.rglob("*.py"):
-            if verbose:
-                click.echo(f"\n[DEBUG] Parsing {file_path.relative_to(package_path)}")
-            
-            module_data = _analyze_module(file_path, package_path, config)
-            
-            if verbose:
-                click.echo(f"  Found {len(module_data.get('constants', {}))} constants")
-                click.echo(f"  Found {len(module_data.get('functions', {}))} functions")
-                click.echo(f"  Found {len(module_data.get('classes', {}))} classes")
-                click.echo(f"  Dependencies: {module_data.get('internal_deps', [])[:3]}...")
-                if module_data.get('examples'):
-                    click.echo(f"  Examples: {len(module_data['examples'])} found")
 
         return package_info
     except Exception as e:
