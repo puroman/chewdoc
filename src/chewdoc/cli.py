@@ -20,7 +20,8 @@ def cli(ctx):
 )
 def package(source, version, local, output):
     """Analyze a Python package"""
-    package_info = analyze_package(source=source, version=version, is_local=local)
+    package_info = analyze_package(
+        source=source, version=version, is_local=local)
     generate_docs(package_info, Path(output))
 
 

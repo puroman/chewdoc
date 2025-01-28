@@ -2,15 +2,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 from chewdoc.utils import get_annotation, infer_responsibilities
+from chewdoc.config import ChewdocConfig
 
 import ast
 
-from src.chewdoc.constants import (
-    META_TEMPLATE,
-    MODULE_TEMPLATE,
-    API_REF_TEMPLATE,
-    RELATIONSHIP_TEMPLATE,
-)
+from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
 
 
 def generate_myst(
@@ -77,7 +73,7 @@ def _format_module_content(module: dict) -> str:
         layer_section=_format_architecture_layer(module),
         description=module.get("description") or infer_responsibilities(module),
         dependencies=_format_dependencies(module["internal_deps"]),
-        usage_examples=_format_usage_examples(module.get("examples", []))
+        usage_examples=_format_usage_examples(module.get("examples", [])),
     )
 
 
@@ -208,14 +204,14 @@ def _format_modules(modules: list) -> str:
     return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
 
-def _format_function_signature(args: ast.arguments, returns: ast.AST) -> str:
+def _format_function_signature(args: ast.arguments, returns: ast.AST, config: ChewdocConfig) -> str:
     """Format function signature with type annotations"""
     params = []
     for arg in args.args:
         name = arg.arg
         annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
         params.append(f"{name}{': ' + annotation if annotation else ''}")
-    
+
     return_type = get_annotation(returns, config) if returns else ""
     if return_type:
         return f"({', '.join(params)}) -> {return_type}"
@@ -226,17 +222,17 @@ def _format_usage_examples(examples: list) -> str:
     """Format usage examples with proper code blocks"""
     if not examples:
         return "No usage examples available"
-    
+
     formatted = []
     for idx, example in enumerate(examples, 1):
         code = example.get("code", "")
         if not code.strip():
             continue
-            
+
         formatted.append(
             f"### Example {idx}\n"
             f"```python\n{code}\n```\n"
             f"{example.get('description', '')}"
         )
-    
+
     return "\n\n".join(formatted) or "No valid usage examples found"

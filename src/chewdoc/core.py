@@ -14,7 +14,7 @@ except ImportError:
 from chewdoc.formatters.myst_writer import _format_function_signature, generate_myst
 from chewdoc.utils import get_annotation, infer_responsibilities
 import re
-from chewdoc.constants import CLI_HELP, DEFAULT_EXCLUSIONS, ERROR_TEMPLATES, AST_NODE_TYPES
+from chewdoc.constants import AST_NODE_TYPES
 import fnmatch
 from chewdoc.config import ChewdocConfig, load_config
 
@@ -58,7 +58,11 @@ def analyze_package(
                     "imports": _find_imports(module["ast"], package_name),
                     "constants": _find_constants(module["ast"], config),
                     "examples": _find_usage_examples(module["ast"]),
-                    "internal_deps": [imp["full_path"] for imp in module["imports"] if imp["type"] == "internal"],
+                    "internal_deps": [
+                        imp["full_path"]
+                        for imp in module["imports"]
+                        if imp["type"] == "internal"
+                    ],
                     "package": package_name,
                 }
             )
@@ -68,7 +72,8 @@ def analyze_package(
         package_info["relationships"] = relationships
 
         return package_info
-    except Exception as e:
+    except Exception:
+        metadata["version"] = "0.0.0"
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 
@@ -141,14 +146,15 @@ def get_local_metadata(path: Path) -> dict:
         "version": "0.0.0",
         "author": "Unknown",
         "license": "Proprietary",
-        "python_requires": ">=3.6"
+        "python_requires": ">=3.6",
     }
 
     # Try Git repository info
     try:
         result = subprocess.run(
             ["git", "-C", str(path), "config", "user.name"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             metadata["author"] = result.stdout.strip()
@@ -159,7 +165,8 @@ def get_local_metadata(path: Path) -> dict:
     try:
         result = subprocess.run(
             ["git", "-C", str(path), "log", "-1", "--format=%cd"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             metadata["last_updated"] = result.stdout.strip()
@@ -170,19 +177,21 @@ def get_local_metadata(path: Path) -> dict:
     license_file = next((f for f in path.glob("LICENSE*") if f.is_file()), None)
     if license_file:
         metadata["license"] = license_file.name
-    
+
     try:
         pyproject_data = parse_pyproject(path / "pyproject.toml")
-        metadata.update({
-            "name": pyproject_data["name"],
-            "version": pyproject_data["version"],
-            "author": pyproject_data["author"],
-            "license": pyproject_data.get("license", metadata["license"]),
-            "python_requires": pyproject_data.get("python_requires", ">=3.6"),
-        })
+        metadata.update(
+            {
+                "name": pyproject_data["name"],
+                "version": pyproject_data["version"],
+                "author": pyproject_data["author"],
+                "license": pyproject_data.get("license", metadata["license"]),
+                "python_requires": pyproject_data.get("python_requires", ">=3.6"),
+            }
+        )
     except FileNotFoundError:
         pass
-        
+
     return metadata
 
 
@@ -334,24 +343,27 @@ def _find_imports(node: ast.AST, package_name: str) -> list:
     for n in ast.walk(node):
         if isinstance(n, ast.Import):
             for alias in n.names:
-                imports.append({
-                    "name": alias.name,
-                    "full_path": alias.name,
-                    "type": ("internal" if alias.name.startswith(package_name) 
-                            else "stdlib" if "." not in alias.name 
-                            else "external")
-                })
+                imports.append(
+                    {
+                        "name": alias.name,
+                        "full_path": alias.name,
+                        "type": (
+                            "internal"
+                            if alias.name.startswith(package_name)
+                            else "stdlib" if "." not in alias.name else "external"
+                        ),
+                    }
+                )
         elif isinstance(n, ast.ImportFrom):
             module = n.module or ""
             for alias in n.names:
                 full_path = f"{module}.{alias.name}" if module else alias.name
-                import_type = ("internal" if full_path.startswith(package_name) 
-                              else "external")
-                imports.append({
-                    "name": alias.name,
-                    "full_path": full_path,
-                    "type": import_type
-                })
+                import_type = (
+                    "internal" if full_path.startswith(package_name) else "external"
+                )
+                imports.append(
+                    {"name": alias.name, "full_path": full_path, "type": import_type}
+                )
     return imports
 
 
@@ -418,7 +430,7 @@ def extract_type_info(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
             func_name = node.name
             type_info["functions"][func_name] = {
                 "args": _get_arg_types(node.args, config),
-                "returns": _get_return_type(node.returns, config)
+                "returns": _get_return_type(node.returns, config),
             }
             self.generic_visit(node)
 
@@ -516,28 +528,40 @@ def _find_usage_examples(node: ast.AST) -> list:
     examples = []
     for n in ast.walk(node):
         if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant):
-            if isinstance(n.value.value, str) and "Example:" in (docstring := n.value.value):
-                examples.append({
-                    "type": "doctest",
-                    "content": "\n".join(line.strip() for line in docstring.split("\n")),
-                    "line": n.lineno
-                })
+            if isinstance(n.value.value, str) and "Example:" in (
+                docstring := n.value.value
+            ):
+                examples.append(
+                    {
+                        "type": "doctest",
+                        "content": "\n".join(
+                            line.strip() for line in docstring.split("\n")
+                        ),
+                        "line": n.lineno,
+                    }
+                )
         elif isinstance(n, ast.FunctionDef) and n.name.startswith("test_"):
-            examples.append({
-                "type": "pytest",
-                "name": n.name,
-                "line": n.lineno,
-                "body": ast.unparse(n)
-            })
+            examples.append(
+                {
+                    "type": "pytest",
+                    "name": n.name,
+                    "line": n.lineno,
+                    "body": ast.unparse(n),
+                }
+            )
     return examples
 
 
 def _infer_type_from_value(value: str) -> str:
     """Infer basic type from assigned value"""
-    if value.startswith(('"', "'")): return "str"
-    if value.isdigit(): return "int"
-    if value.replace('.', '', 1).isdigit(): return "float"
-    if value in ('True', 'False'): return "bool"
+    if value.startswith(('"', "'")):
+        return "str"
+    if value.isdigit():
+        return "int"
+    if value.replace(".", "", 1).isdigit():
+        return "float"
+    if value in ("True", "False"):
+        return "bool"
     return "Any"
 
 
@@ -550,58 +574,62 @@ def _generate_basic_example(node: ast.FunctionDef) -> str:
 def _find_relationships(imports: list, modules: list, package_name: str) -> dict:
     """Map relationships between components using actual package name"""
     return {
-        "depends_on": [imp['full_path'] for imp in imports],
+        "depends_on": [imp["full_path"] for imp in imports],
         "used_by": [
-            mod['name'] for mod in modules 
+            mod["name"]
+            for mod in modules
             if any(f"{package_name}." in dep for dep in mod.get("internal_deps", []))
-        ]
+        ],
     }
 
 
 def _analyze_relationships(modules: list, package_name: str) -> dict:
     """Analyze cross-module dependencies using actual package name"""
     relationship_map = defaultdict(set)
-    
+
     for module in modules:
         for imp in module["imports"]:
             if imp["type"] == "internal":
                 relationship_map[module["name"]].add(imp["full_path"])
-                
+
     return {
         "dependency_graph": relationship_map,
         "reverse_dependencies": {
-            target: {source for source, targets in relationship_map.items() 
-                    if target in targets}
+            target: {
+                source
+                for source, targets in relationship_map.items()
+                if target in targets
+            }
             for target in set().union(*relationship_map.values())
-        }
+        },
     }
 
 
 def _generate_usage_examples(ast_node: ast.AST) -> list:
     """Generate basic usage examples from function definitions"""
     examples = []
-    
+
     class ExampleVisitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node):
             if node.name.startswith("test_"):
                 return
-                
+
             example = {
                 "type": "generated",
                 "function": node.name,
                 "signature": _format_function_signature(node.args, node.returns),
-                "code": f"result = {node.name}("
+                "code": f"result = {node.name}(",
             }
-            
+
             # Generate parameter placeholders
             params = []
             for arg in node.args.args:
                 params.append(f"{arg.arg}=...")
             example["code"] += ", ".join(params) + ")"
-            
+
             examples.append(example)
             self.generic_visit(node)
-    
+
     ExampleVisitor().visit(ast_node)
     return examples
 
@@ -610,7 +638,7 @@ def _infer_type_info(node: ast.Assign) -> Dict[str, str]:
     """Infer type information from assignment values"""
     if not node.value:
         return {"type": None, "value": None}
-    
+
     value = ast.unparse(node.value)
     type_map = {
         "str": str,
@@ -618,9 +646,9 @@ def _infer_type_info(node: ast.Assign) -> Dict[str, str]:
         "float": float,
         "bool": bool,
         "list": list,
-        "dict": dict
+        "dict": dict,
     }
-    
+
     inferred_type = "Any"
     for type_name, type_check in type_map.items():
         try:
@@ -629,9 +657,5 @@ def _infer_type_info(node: ast.Assign) -> Dict[str, str]:
                 break
         except (ValueError, SyntaxError):
             continue
-            
-    return {
-        "type": inferred_type,
-        "value": value,
-        "inferred": True
-    }
+
+    return {"type": inferred_type, "value": value, "inferred": True}

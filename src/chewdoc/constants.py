@@ -82,14 +82,14 @@ graph TD
 AST_NODE_TYPES = {
     "MODULE": ast.Module,
     "CLASS": ast.ClassDef,
-    "FUNCTION": ast.FunctionDef
+    "FUNCTION": ast.FunctionDef,
 }
 
 # Error Handling
 ERROR_TEMPLATES = {
     "missing_docstring": "No documentation found for {item_type} {item_name}",
     "invalid_crossref": "Broken link to {target} in {source}",
-    "template_error": "Invalid template version {found} (expected {expected})"
+    "template_error": "Invalid template version {found} (expected {expected})",
 }
 
 # Default Configuration
@@ -102,14 +102,10 @@ DEFAULT_EXCLUSIONS = [
     "env*",
     ".git",
     "dist",
-    "build"
+    "build",
 ]
 
-TYPE_ALIASES = {
-    "List": "list",
-    "Dict": "dict",
-    "Optional": "typing.Optional"
-}
+TYPE_ALIASES = {"List": "list", "Dict": "dict", "Optional": "typing.Optional"}
 
 # CLI Configuration
 CLI_HELP = {

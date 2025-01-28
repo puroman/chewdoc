@@ -2,7 +2,7 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python
 UV = $(VENV)/bin/uv
 
-.PHONY: venv test clean docs
+.PHONY: venv test clean docs lint format
 
 venv:
 	@echo "Creating virtual environment..."
@@ -23,3 +23,9 @@ docs: venv
 
 clean:
 	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs
+
+lint: venv
+	$(PYTHON) -m flake8 src tests
+
+format: venv
+	$(PYTHON) -m black src tests
