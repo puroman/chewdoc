@@ -246,3 +246,19 @@ def process(o: Outer.Inner) -> None: pass
 
     assert "Outer.Inner" in type_info["cross_references"]
     assert "Outer" in type_info["cross_references"]
+
+
+def test_constants_extraction(tmp_path):
+    pkg_dir = tmp_path / "testpkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text('"""Test package"""')
+    (pkg_dir / "module.py").write_text('def test_fn():\n    """Test function"""')
+    (pkg_dir / "constants.py").write_text(
+        'API_URL = "https://api.example.com"\n'
+        'DEBUG = False\n'
+        'class MyClass: pass\n'
+    )
+    result = analyze_package(str(pkg_dir), is_local=True)
+    constants_module = next(m for m in result["modules"] if m["name"] == "testpkg.constants")
+    assert ("API_URL", '"https://api.example.com"') in constants_module["constants"]
+    assert "DEBUG" in [c[0] for c in constants_module["constants"]]

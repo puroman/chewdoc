@@ -1,6 +1,6 @@
 import ast
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import importlib.metadata
 import subprocess
 import tempfile
@@ -14,7 +14,7 @@ try:
 except ImportError:
     import tomllib as tomli  # Python 3.11+
 from chewdoc.formatters.myst_writer import MystWriter
-from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature
+from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature, extract_constant_values
 import re
 from chewdoc.constants import AST_NODE_TYPES
 import fnmatch
@@ -100,6 +100,11 @@ def analyze_package(
                 "ast": module_ast,
                 "docstrings": extract_docstrings(module_ast),
                 "types": extract_type_info(module_ast, config),
+                "constants": {
+                    name: {"value": value}
+                    for name, value in extract_constant_values(module_ast)
+                    if name.isupper()
+                },
                 "examples": find_usage_examples(module_ast),
                 "imports": _find_imports(module_ast, package_name),
                 "internal_deps": module_data.get("internal_deps", [])
@@ -108,6 +113,13 @@ def analyze_package(
             # Track imports at package level
             for imp in module_info["imports"]:
                 package_info["imports"][imp["full_path"]].append(module_name)
+            
+            # Track internal dependencies
+            internal_imports = [
+                imp["full_path"] for imp in module_info["imports"]
+                if imp["type"] == "internal"
+            ]
+            module_info["internal_deps"] = list(set(internal_imports))
             
             package_info["modules"].append(module_info)
 

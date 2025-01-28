@@ -1,6 +1,6 @@
 import ast
 from chewdoc.config import ChewdocConfig
-from typing import Any
+from typing import Any, List, Tuple
 from pathlib import Path
 
 
@@ -139,3 +139,15 @@ def _find_imports(node: ast.AST) -> list:
     
     ImportVisitor().visit(node)
     return imports
+
+
+def extract_constant_values(node: ast.AST) -> List[Tuple[str, str]]:
+    """Extract module-level constants with ALL_CAPS names"""
+    constants = []
+    for stmt in node.body:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name) and target.id.isupper():
+                    value = ast.unparse(stmt.value).strip()
+                    constants.append((target.id, value))
+    return constants
