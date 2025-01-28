@@ -8,7 +8,7 @@ from src.chewdoc._version import __version__
 def test_cli_local_package(tmp_path):
     runner = CliRunner()
     with patch("src.chewdoc.cli.analyze_package") as mock_analyze, \
-         patch("src.chewdoc.cli.MystWriter") as mock_writer:
+         patch("src.chewdoc.formatters.myst_writer.MystWriter") as mock_writer:
         
         mock_analyze.return_value = {"name": "testpkg"}
         result = runner.invoke(cli, ["chew", str(tmp_path), "--local"])
@@ -56,3 +56,4 @@ def test_cli_version():
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
     assert __version__ in result.output
+    # Add cleanup for version file

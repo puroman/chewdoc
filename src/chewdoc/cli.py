@@ -13,15 +13,15 @@ def cli(ctx):
 
 
 @cli.command()
-@click.argument("target")
-@click.option("--local", is_flag=True, help="Analyze local directory")
+@click.argument("source")
+@click.option("--version", help="Package version")
+@click.option("--local", is_flag=True, help="Local package")
 @click.option("--pypi", is_flag=True, help="Analyze PyPI package")
 @click.option("--url", help="Analyze from Git URL")
-@click.option("--version", help="Specify package version (PyPI only)")
 @click.option("--output", "-o", type=click.Path(), default="chewdoc-output", 
              help="Output directory path", show_default=True)
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed progress")
-def chew(target, local, pypi, url, version, output, verbose):
+def chew(source, version, local, pypi, url, output, verbose):
     """Generate documentation for a Python package/module"""
     start_time = datetime.now()
     
@@ -34,7 +34,7 @@ def chew(target, local, pypi, url, version, output, verbose):
     # Actual processing logic
     try:
         package_info = analyze_package(
-            source=target,
+            source=source,
             version=version,
             is_local=local,
             verbose=verbose

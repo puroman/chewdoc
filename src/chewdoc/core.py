@@ -13,7 +13,7 @@ try:
     import tomli
 except ImportError:
     import tomllib as tomli  # Python 3.11+
-from chewdoc.formatters.myst_writer import MystWriter
+from src.chewdoc.formatters.myst_writer import MystWriter
 from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature, extract_constant_values
 import re
 from chewdoc.constants import AST_NODE_TYPES
@@ -357,7 +357,7 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
     return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
 
 
-def _find_imports(node: ast.AST, package_name: str) -> list:
+def _find_imports(node: ast.AST, package_name: str) -> List[str]:
     """Improved import detection with package context"""
     imports = []
     for n in ast.walk(node):

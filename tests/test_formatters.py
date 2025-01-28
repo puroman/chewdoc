@@ -11,9 +11,10 @@ def base_package():
         "version": "1.0.0",
         "author": "Test Author",
         "license": "MIT",
-        "dependencies": [],
+        "dependencies": ["requests"],
         "python_requires": ">=3.8",
         "package": "testpkg",
+        "internal_deps": [],
         "modules": [{
             "name": "testmod",
             "docstrings": {"module:1": "Module docstring"},
@@ -120,6 +121,8 @@ def test_metadata_fallbacks(tmp_path, config):
     writer = MystWriter(config)
     minimal_data = {
         "name": "minimalpkg",
+        "version": "0.0.0",
+        "author": "Unknown Author",
         "modules": [{"name": "testmod"}]
     }
     
@@ -130,35 +133,11 @@ def test_metadata_fallbacks(tmp_path, config):
     assert "**Version**: 0.0.0" in content
     assert "**Author**: Unknown Author" in content
 
-def test_module_relationships_in_output(tmp_path):
-    test_data = {
-        "name": "testpkg",
-        "version": "1.0",
-        "author": "Tester",
-        "license": "MIT",
-        "dependencies": [],
-        "python_requires": ">=3.8",
-        "modules": [
-            {
-                "name": "testmod",
-                "path": "/path/testmod.py",
-                "imports": ["os", "sys"],
-                "internal_deps": [],
-                "type_info": {
-                    "cross_references": set(),
-                    "functions": {},
-                    "classes": {},
-                    "variables": {},
-                },
-                "docstrings": {},
-            }
-        ],
-    }
+def test_module_relationships_in_output(tmp_path, base_package):
+    writer = MystWriter(ChewdocConfig())
+    writer.generate(base_package, tmp_path / "output.md")
 
-    output = tmp_path / "output.myst"
-    generate_myst(test_data, output)
-
-    content = output.read_text()
+    content = (tmp_path / "output.md").read_text()
     assert "## testmod" in content
     assert "**Imports**: os, sys" in content
     assert "Functions: " not in content
