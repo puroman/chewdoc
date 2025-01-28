@@ -14,7 +14,7 @@ try:
 except ImportError:
     import tomllib as tomli  # Python 3.11+
 from chewdoc.formatters.myst_writer import MystWriter
-from chewdoc.utils import get_annotation, infer_responsibilities
+from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature
 import re
 from chewdoc.constants import AST_NODE_TYPES
 import fnmatch
@@ -77,13 +77,18 @@ def analyze_package(
             if verbose:
                 click.echo(f"🔄 Processing ({processed}/{total_modules}): {module_name}")
             
+            with open(module_data["path"], "r") as f:
+                module_ast = ast.parse(f.read())
+            
+            validate_ast(module_ast)  # Raises meaningful error on invalid AST
+            
             module_info = {
                 "name": module_name,
                 "path": module_data["path"],
-                "ast": module_data["ast"],  # Use pre-parsed AST
-                "docstrings": extract_docstrings(module_data["ast"]),
-                "types": extract_type_info(module_data["ast"], config),
-                "examples": find_usage_examples(module_data["ast"])
+                "ast": module_ast,  # Store parsed AST tree
+                "docstrings": extract_docstrings(module_ast),
+                "types": extract_type_info(module_ast, config),
+                "examples": find_usage_examples(module_ast)
             }
             package_info["modules"].append(module_info)
 
@@ -111,7 +116,6 @@ def analyze_package(
 
         return package_info
     except Exception as e:
-        importlib.metadata.metadata["version"] = "0.0.0"
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 

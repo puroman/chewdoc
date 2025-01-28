@@ -31,10 +31,10 @@ uv pip install -e .
 ### CLI Usage
 ```bash
 # Generate docs for local package
-chewdoc generate ./my_package --local --output docs/
+chewdoc chew ./my_package --local --output docs/
 
 # Generate docs for PyPI package
-chewdoc generate requests --output docs/
+chewdoc chew requests --version 2.31.0 --output docs/output.myst
 ```
 
 ### Programmatic API

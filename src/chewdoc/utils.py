@@ -70,3 +70,35 @@ def infer_responsibilities(module: dict) -> str:
         return "General utility module with mixed responsibilities"
         
     return "\n- ".join([""] + responsibilities)
+
+
+def validate_ast(node: ast.AST) -> None:
+    """Validate AST structure for documentation processing"""
+    if not isinstance(node, ast.AST):
+        raise TypeError(f"Expected AST node, got {type(node).__name__}")
+    if not hasattr(node, 'body'):
+        raise ValueError("Invalid AST structure - missing body attribute")
+    
+    # Check for minimum required elements
+    if not any(isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Assign)) 
+              for stmt in node.body):
+        raise ValueError("Empty or invalid module AST structure")
+
+
+def find_usage_examples(node: ast.AST) -> list:
+    """Placeholder example finder (implement your logic here)"""
+    return []  # TODO: Add actual example extraction logic
+
+
+def format_function_signature(args: ast.arguments, returns: ast.AST, config: ChewdocConfig) -> str:
+    """Format function signature with type annotations"""
+    params = []
+    for arg in args.args:
+        name = arg.arg
+        annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+        params.append(f"{name}{': ' + annotation if annotation else ''}")
+
+    return_type = get_annotation(returns, config) if returns else ""
+    if return_type:
+        return f"({', '.join(params)}) -> {return_type}"
+    return f"({', '.join(params)})"

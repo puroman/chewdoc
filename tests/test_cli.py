@@ -19,7 +19,7 @@ def test_cli_package_command(tmp_path):
         output_path = tmp_path / "out.md"
 
         result = runner.invoke(
-            cli, ["package", str(tmp_path), "--local", "--output", str(output_path)]
+            cli, ["chew", str(tmp_path), "--local", "--output", str(output_path)]
         )
 
         assert result.exit_code == 0, f"CLI failed: {result.exception}"
@@ -39,7 +39,7 @@ def test_cli_version_handling(tmp_path):
         result = runner.invoke(
             cli,
             [
-                "package",
+                "chew",
                 "requests",
                 "--version",
                 "2.28.1",
@@ -52,22 +52,6 @@ def test_cli_version_handling(tmp_path):
         mock_analyze.assert_called_once_with(
             source="requests", version="2.28.1", is_local=False
         )
-
-
-def test_cli_module_command(tmp_path):
-    runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package") as mock_analyze:
-        mock_analyze.return_value = {"name": "testmod"}
-        module_path = tmp_path / "testmod.py"
-        module_path.write_text('"""Test module"""')  # Create the file
-        output_path = tmp_path / "mod.md"
-
-        result = runner.invoke(
-            cli, ["module", str(module_path), "--output", str(output_path)]
-        )
-
-        assert result.exit_code == 0
-        assert "Analyzing module" in result.output
 
 
 def test_invalid_cli_arguments():

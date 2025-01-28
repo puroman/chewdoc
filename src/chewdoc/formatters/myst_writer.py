@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from chewdoc.utils import get_annotation, infer_responsibilities
+from chewdoc.utils import get_annotation, infer_responsibilities, format_function_signature
 from chewdoc.config import ChewdocConfig
 
 import ast
@@ -149,7 +149,7 @@ class MystWriter:
     def _format_api_reference(self, types: Dict[str, Any]) -> str:
         """Format functions and classes with cross-references and docstrings"""
         sections = []
-
+        
         # Handle classes and their methods
         for cls_name, cls_info in types.get("classes", {}).items():
             class_doc = [
@@ -161,16 +161,20 @@ class MystWriter:
             if cls_info.get("methods"):
                 class_doc.append("\n**Methods**:")
                 for method, details in cls_info["methods"].items():
-                    args = ", ".join([f"{k}: {v}" for k, v in details["args"].items()])
-                    class_doc.append(f"- `{method}({args})` -> {details['returns']}")
-
-            sections.append("\n".join(class_doc))
+                    signature = self._format_function_signature(
+                        details["args"], 
+                        details["returns"]
+                    )
+                    class_doc.append(f"- `{method}{signature}`")
 
         # Handle functions
         for func_name, func_info in types.get("functions", {}).items():
-            args = ", ".join([f"{k}: {v}" for k, v in func_info["args"].items()])
+            signature = self._format_function_signature(
+                func_info["args"], 
+                func_info["returns"]
+            )
             func_doc = [
-                f"## `{func_name}({args})` -> {func_info['returns']}",
+                f"## `{func_name}{signature}`",
                 func_info.get("doc", "No function documentation"),
             ]
             sections.append("\n".join(func_doc))
@@ -225,17 +229,8 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, args: ast.arguments, returns: ast.AST) -> str:
-        """Format function signature with type annotations"""
-        params = []
-        for arg in args.args:
-            name = arg.arg
-            annotation = get_annotation(arg.annotation, self.config) if arg.annotation else ""
-            params.append(f"{name}{': ' + annotation if annotation else ''}")
-
-        return_type = get_annotation(returns, self.config) if returns else ""
-        if return_type:
-            return f"({', '.join(params)}) -> {return_type}"
-        return f"({', '.join(params)})"
+        """Format function signature using shared utility"""
+        return format_function_signature(args, returns, self.config)
 
     def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
         """Format usage examples with proper code blocks"""
