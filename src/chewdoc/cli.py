@@ -41,6 +41,11 @@ def chew(target, local, pypi, url, version, output, verbose):
         )
         
         output_path = Path(output)
+        
+        if verbose:
+            total_examples = sum(len(m.get("examples", [])) for m in package_info["modules"])
+            click.echo(f"📋 Found {total_examples} usage examples across modules")
+        
         generate_docs(package_info, output_path, verbose=verbose)
         
         if verbose:

@@ -312,3 +312,32 @@ def test_generic_type_formatting(tmp_path):
     content = output.read_text()
     assert "[List[Dict[str, int]]](#list)" in content
     assert "[Optional[float]](#optional)" in content
+
+
+def test_example_formatting(tmp_path):
+    test_data = {
+        "modules": [{
+            "name": "testmod",
+            "examples": [
+                {
+                    "type": "doctest", 
+                    "content": ">>> print('example')\n'example'",
+                    "line": 5
+                },
+                {
+                    "type": "pytest",
+                    "name": "test_usage",
+                    "content": "def test_usage():\n    assert True",
+                    "line": 10
+                }
+            ]
+        }]
+    }
+
+    output = tmp_path / "output.myst"
+    generate_myst(test_data, output)
+    
+    content = output.read_text()
+    assert "## Usage Examples" in content
+    assert ">>> print('example')" in content
+    assert "**Test case**: `test_usage`" in content

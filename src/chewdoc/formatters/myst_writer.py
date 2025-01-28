@@ -89,7 +89,7 @@ class MystWriter:
             dependencies=self._format_dependencies(module["internal_deps"]),
             usage_examples=self._format_usage_examples(
                 module.get("examples", []), 
-                config=module.get("config")  # Pass config from module data
+                config=self.config
             ),
         )
 
@@ -235,31 +235,18 @@ class MystWriter:
         return format_function_signature(args, returns, self.config)
 
     def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
-        """Format usage examples with proper code blocks"""
+        """Format usage examples section"""
         if not examples:
-            return "No usage examples available"
-        
-        formatted = []
-        for idx, example in enumerate(examples[:3], 1):  # Show max 3 examples
-            code = example.get("code", "")
+            return "No usage examples found"
             
-            # Trim long examples
-            lines = code.split("\n")
-            if len(lines) > config.max_example_lines:
-                code = "\n".join(lines[:config.max_example_lines]) 
-                code += f"\n# ... truncated {len(lines)-config.max_example_lines} lines"
-            
-            desc = example.get("description", "")
-            if desc:
-                desc = f"*{desc}*"
-                
-            formatted.append(
-                f"### Example {idx}\n"
-                f"{desc}\n"
-                f"```python\n{code}\n```"
-            )
+        output = ["## Usage Examples"]
+        for ex in examples:
+            if ex["type"] == "doctest":
+                output.append(f"```python\n{ex['content']}\n```")
+            elif ex["type"] == "pytest":
+                output.append(f"**Test case**: `{ex['name']}`\n```python\n{ex['content']}\n```")
         
-        return "\n\n".join(formatted)
+        return "\n\n".join(output)
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
