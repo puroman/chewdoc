@@ -64,8 +64,8 @@ def test_module_relationships_in_output(tmp_path):
     
     content = output.read_text()
     assert "## testmod" in content
-    assert "Functions: test_fn() -> str" in content
-    assert "`os`, `sys`" in content 
+    assert "**Imports**: os, sys" in content
+    assert "Functions: " not in content
 
 def test_cross_reference_validation(tmp_path):
     test_data = {

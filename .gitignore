@@ -25,3 +25,4 @@ Thumbs.db
 *.log 
 .git_archival.txt
 .gitattributes
+docs/*
