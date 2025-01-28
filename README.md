@@ -1,40 +1,61 @@
-# ChewDoc
+# ChewDoc :notebook_with_decorative_cover:
 
-## Overview
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-ChewDoc is a powerful Python documentation generation tool that converts package metadata and docstrings into MyST-compatible markdown.
+Intelligent documentation generator that creates LLM-optimized documentation with rich type information and usage examples.
 
-## Installation
+## Features :sparkles:
+
+- **AST-based Analysis**: Deep code structure analysis using Python's Abstract Syntax Trees
+- **Multi-format Output**: Generate MyST markdown or basic Markdown documentation
+- **Smart Type Inference**: Automatic type annotation resolution with configurable aliases
+- **Cross-references**: Automatic links between related components
+- **Usage Examples**: Extract and format examples from docstrings and test cases
+- **Configurable**: Control through `pyproject.toml` or programmatic API
+- **Dependency Mapping**: Visualize module relationships with Mermaid diagrams
+
+## Installation :package:
 
 ```bash
-python3 -m pip install git+https://github.com/puroman/chewdoc.git
+# Install with UV (recommended)
+python3 -m pip install uv
+uv pip install git+https://github.com/puroman/chewdoc.git
+
+# For development (editable install)
+git clone https://github.com/puroman/chewdoc.git
+cd chewdoc
+uv pip install -e .
 ```
 
-## Quick Start
+## Quick Start :rocket:
 
+### CLI Usage
+```bash
+# Generate docs for local package
+chewdoc generate ./my_package --local --output docs/
+
+# Generate docs for PyPI package
+chewdoc generate requests --output docs/
+```
+
+### Programmatic API
 ```python
 from chewdoc import analyze_package, generate_docs
+from chewdoc.config import load_config
 
-# Analyze a local package
-result = analyze_package('./my_package', is_local=True)
-
-# Generate documentation
-generate_docs(result, output_format='myst')
+config = load_config()  # Load from pyproject.toml
+package_info = analyze_package("mypackage", config=config)
+generate_docs(
+    package_info,
+    output_format="myst",
+    output_path="docs/",
+    enable_cross_refs=True
+)
 ```
 
-## Features
+## Configuration :wrench:
 
-- Extract docstrings and type information
-- Generate MyST markdown documentation
-- Support for local and PyPI packages
-- **Smart Configuration** via `pyproject.toml`
-- Customizable documentation templates
-- Configurable type aliases and exclusion patterns
-- Cross-reference generation toggle
-- Multi-format output support (MyST, Markdown)
-- Usage example size control
-
-## Configuration
 Add a `[tool.chewdoc]` section to your `pyproject.toml`:
 
 ```toml
@@ -47,44 +68,79 @@ enable_cross_references = true
 max_example_lines = 15
 ```
 
-### Configuration Options
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `exclude_patterns` | List[str] | `["__pycache__", "*.tests", "test_*"]` | File patterns to exclude from processing |
+| `exclude_patterns` | List[str] | [".venv*", "__pycache__", ...] | File patterns to exclude |
 | `known_types` | Dict[str, str] | Common type shortcuts | Simplify complex type annotations |
-| `output_format` | str | `"myst"` | Documentation format (myst/markdown) |
-| `template_dir` | Path | `None` | Custom template directory |
-| `enable_cross_references` | bool | `True` | Generate cross-module links |
-| `max_example_lines` | int | `10` | Max lines in usage examples |
+| `output_format` | str | "myst" | Documentation format (myst/markdown) |
+| `template_dir` | Path | None | Custom template directory |
+| `enable_cross_references` | bool | True | Generate cross-module links |
+| `max_example_lines` | int | 10 | Max lines in usage examples |
 
-## Usage
+## Project Structure :file_folder:
+
+```
+chewdoc/
+├── src/
+│   ├── chewdoc/
+│   │   ├── core.py        # Main analysis logic
+│   │   ├── formatters/    # Output generators (MyST/Markdown)
+│   │   ├── utils.py       # Shared utilities
+│   │   ├── config.py      # Configuration handling
+│   │   └── cli.py         # Command line interface
+├── tests/                 # Unit and integration tests
+├── pyproject.toml         # Build configuration
+└── README.md              # This documentation
+```
+
+## Advanced Usage :microscope:
+
+### Custom Templates
+Create custom templates in a `templates/` directory:
 ```python
-from chewdoc import analyze_package, generate_docs
-from chewdoc.config import load_config
+# docs/templates/module.md.j2
+# {{ module.name }}
 
-# Load configuration
-config = load_config()
+{{ module.description }}
 
-# Analyze package with config
-package_info = analyze_package("mypackage", config=config)
-
-# Generate docs using configuration
-generate_docs(package_info, "docs/output", config=config)
+{% if module.examples %}
+## Usage Examples
+{% for example in module.examples %}
+```python
+{{ example.code }}
+```
+{% endfor %}
+{% endif %}
 ```
 
-## CLI Integration
+### Type Annotation Handling
+Configure complex types in `pyproject.toml`:
+```toml
+[tool.chewdoc.known_types]
+"numpy.ndarray" = "NDArray"
+"pandas.DataFrame" = "DataFrame"
+```
+
+## Running Tests :test_tube:
+
 ```bash
-chewdoc generate mypackage --config pyproject.toml
+uv pip install -r requirements-test.txt
+pytest tests/ --cov=chewdoc -v
+
+# With coverage report
+pytest tests/ --cov=chewdoc --cov-report=html
 ```
 
-## Legacy Support
-Existing code using `EXCLUDE_PATTERNS` and `KNOWN_TYPES` from constants will 
-still work, but configuration file values take precedence.
+## Contributing :handshake:
 
-## Contributing
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes with semantic messages
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Contributions are welcome! Please submit pull requests or open issues on our GitHub repository.
+Please follow existing code style and add tests for new features.
 
-## License
+## License :scroll:
 
-MIT License 
+MIT License - See [LICENSE](LICENSE) for details 
