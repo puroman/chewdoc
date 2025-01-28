@@ -1,21 +1,148 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE, API_REF_TEMPLATE, RELATIONSHIP_TEMPLATE, KNOWN_TYPES
+import ast
 
 def generate_myst(package_data: Dict[str, Any], output_path: Path) -> None:
-    """Generate MyST documentation with validation"""
+    """Generate structured MyST documentation with separate files"""
     if not package_data:
         raise ValueError("No package data provided")
     
+    # Create output directory structure
+    package_name = package_data.get('name', 'unnamed_package')
+    output_dir = output_path / f"{package_name}_docs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate main package index
+    (output_dir / "index.myst").write_text(_format_package_index(package_data))
+    
+    # Generate module files
+    for module in package_data.get("modules", []):
+        module_name = module['name'].replace('.', '_')
+        module_path = output_dir / f"{module_name}.myst"
+        module_path.write_text(_format_module_content(module))
+
+def _format_package_index(package_data: Dict[str, Any]) -> str:
+    """Generate main package index with module links"""
     content = [
-        f"# Package: {package_data.get('name', 'Unnamed Package')}\n",
-        _format_metadata(package_data),
-        _format_modules(package_data.get("modules", []))
+        f"# {package_data['name']} Documentation\n",
+        "## Package Overview",
+        META_TEMPLATE.format(**package_data),
+        "\n## Modules\n"
     ]
     
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as f:
-        f.write("\n".join(content))
+    for module in package_data.get("modules", []):
+        module_name = module['name'].replace('.', '_')
+        content.append(f"- [[{module['name']}]({module_name}.myst)]")
+    
+    return "\n".join(content)
+
+def _format_module_content(module: Dict[str, Any]) -> str:
+    """Generate comprehensive module documentation with new sections"""
+    content = [
+        f"# {module['name']} Module",
+        f"**Path**: `{module['path']}`",
+        "\n## Module Metadata",
+        _format_module_metadata(module),
+        "\n## Imports",
+        _format_imports(module.get('imports', [])),
+        "\n## Constants",
+        _format_constants(module.get('constants', {})),
+        "\n## API Reference",
+        _format_api_reference(module.get('type_info', {})),
+        "\n## Usage Examples",
+        _format_usage_examples(module.get('examples', [])),
+        "\n## Source Code Structure",
+        _format_code_structure(module.get('ast', {}))
+    ]
+    return "\n".join(content)
+
+def _format_imports(imports: list) -> str:
+    """Format imports with type context and source information"""
+    categorized = {
+        'stdlib': [],
+        'internal': [],
+        'external': []
+    }
+
+    for imp in imports:
+        entry = f"`{imp['name']}`"
+        if imp['source']:
+            entry += f" from `{imp['source']}`"
+        
+        if imp['full_path'].startswith('chewdoc.'):
+            categorized['internal'].append(f"- [[{imp['full_path']}|{entry}]")
+        elif '.' not in imp['full_path']:
+            categorized['stdlib'].append(f"- {entry}")
+        else:
+            categorized['external'].append(f"- {entry}")
+
+    sections = []
+    if categorized['stdlib']:
+        sections.append("### Standard Library\n" + "\n".join(sorted(categorized['stdlib'])))
+    if categorized['internal']:
+        sections.append("### Internal Dependencies\n" + "\n".join(sorted(categorized['internal'])))
+    if categorized['external']:
+        sections.append("### External Dependencies\n" + "\n".join(sorted(categorized['external'])))
+
+    return "\n\n".join(sections) or "No imports found"
+
+def _format_code_structure(ast_data: ast.Module) -> str:
+    """Visualize code structure hierarchy"""
+    structure = []
+    
+    if not isinstance(ast_data, ast.Module):
+        return ""
+    
+    for item in ast_data.body:
+        if isinstance(item, ast.ClassDef):
+            class_entry = f"### Class: {item.name}"
+            methods = [
+                f"  - Method: {subitem.name}"
+                for subitem in item.body
+                if isinstance(subitem, ast.FunctionDef)
+            ]
+            if methods:
+                class_entry += "\n" + "\n".join(methods)
+            structure.append(class_entry)
+        elif isinstance(item, ast.FunctionDef):
+            structure.append(f"- Function: {item.name}")
+    
+    return "\n".join(structure)
+
+def _format_api_reference(types: Dict[str, Any]) -> str:
+    """Format functions and classes with cross-references and docstrings"""
+    sections = []
+    
+    # Handle classes and their methods
+    for cls_name, cls_info in types.get('classes', {}).items():
+        class_doc = [
+            f"## {cls_name}",
+            f"[[{cls_name}]]",
+            cls_info.get('doc', 'No class documentation')
+        ]
+        
+        if cls_info.get('methods'):
+            class_doc.append("\n**Methods**:")
+            for method, details in cls_info['methods'].items():
+                args = ', '.join([f"{k}: {v}" for k, v in details['args'].items()])
+                class_doc.append(
+                    f"- `{method}({args})` -> {details['returns']}"
+                )
+        
+        sections.append("\n".join(class_doc))
+    
+    # Handle functions
+    for func_name, func_info in types.get('functions', {}).items():
+        args = ', '.join([f"{k}: {v}" for k, v in func_info['args'].items()])
+        func_doc = [
+            f"## `{func_name}({args})` -> {func_info['returns']}",
+            func_info.get('doc', 'No function documentation')
+        ]
+        sections.append("\n".join(func_doc))
+    
+    return "\n\n".join(sections) or "No public API elements"
 
 def _format_metadata(package_data: Dict[str, Any]) -> str:
     """Format package metadata section with fallbacks"""
@@ -111,4 +238,46 @@ def _compact_imports(imports: list) -> str:
     if not imports:
         return ""
     
-    return "**Imports**: " + ", ".join(f"`{imp}`" for imp in imports) 
+    return "**Imports**: " + ", ".join(f"`{imp}`" for imp in imports)
+
+def _format_module_metadata(module: Dict[str, Any]) -> str:
+    """Format module-level metadata using the template"""
+    try:
+        # Convert timestamp to datetime object first
+        timestamp = Path(module['path']).stat().st_mtime
+        last_updated = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+    except (KeyError, FileNotFoundError, OSError):
+        last_updated = "Unknown date"
+    
+    return MODULE_TEMPLATE.format(
+        name=module['name'],
+        path=module['path'],
+        package=module.get('package', 'unknown'),
+        description=module.get('docstrings', {}).get('Module:module', {}).get('doc', 'No description'),
+        coverage="N/A",
+        last_updated=last_updated
+    )
+
+def _format_constants(constants: Dict[str, Any]) -> str:
+    """Format module constants section"""
+    if not constants:
+        return "No constants defined"
+    
+    return "### Constants\n" + "\n".join(
+        f"- `{name}` ({info['type'] or 'inferred'}): {info['value']}"
+        for name, info in constants.items()
+    )
+
+def _format_usage_examples(examples: list) -> str:
+    """Format usage examples section"""
+    if not examples:
+        return "No usage examples found"
+    
+    sections = []
+    for ex in examples:
+        if ex['type'] == 'doctest':
+            sections.append(f"```python\n{ex['content']}\n```")
+        elif ex['type'] == 'pytest':
+            sections.append(f"**Test Case**: {ex['name']}\n```python\n{ex['body']}\n```")
+    
+    return "### Usage Examples\n" + "\n\n".join(sections) 

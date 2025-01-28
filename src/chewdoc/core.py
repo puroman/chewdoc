@@ -8,18 +8,24 @@ import shutil
 import tomli
 from chewdoc.formatters.myst_writer import generate_myst
 import re
-from chewdoc.constants import KNOWN_TYPES
+from chewdoc.constants import KNOWN_TYPES, EXCLUDE_PATTERNS
+import fnmatch
 
 def analyze_package(source: str, version: str = None, is_local: bool = False) -> Dict[str, Any]:
-    """Analyze a Python package with enhanced error handling"""
+    """Enhanced package analysis with new metadata"""
     try:
         package_info = get_package_metadata(source, version, is_local)
         package_root = get_package_path(source, is_local)
         
         package_info["modules"] = []
         for module in process_modules(package_root):
-            module["docstrings"] = extract_docstrings(module["ast"])
-            module["type_info"] = extract_type_info(module["ast"])
+            module.update({
+                "docstrings": extract_docstrings(module["ast"]),
+                "type_info": extract_type_info(module["ast"]),
+                "imports": _find_imports(module["ast"]),
+                "constants": _find_constants(module["ast"]),
+                "examples": _find_usage_examples(module["ast"])
+            })
             package_info["modules"].append(module)
             
         return package_info
@@ -27,28 +33,31 @@ def analyze_package(source: str, version: str = None, is_local: bool = False) ->
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 def process_modules(package_path: Path) -> list:
-    """Discover and process package modules with type info"""
+    """Process modules without tracking external dependencies"""
     modules = []
     for file_path in package_path.rglob("*.py"):
+        # Skip files matching exclusion patterns
+        if any(fnmatch.fnmatch(part, pattern)
+               for part in file_path.parts
+               for pattern in EXCLUDE_PATTERNS):
+            continue
+            
         module_data = {
             "name": _get_module_name(file_path, package_path),
             "path": str(file_path),
             "ast": parse_ast(file_path),
-            "imports": [],
-            "types": {}
+            "internal_deps": []
         }
         
-        module_data["imports"] = _find_imports(module_data["ast"])
-        module_data["types"] = extract_type_info(module_data["ast"])
-        modules.append(module_data)
-    
-    # Second pass to find internal dependencies
-    module_names = {m['name'] for m in modules}
-    for module in modules:
-        module['internal_deps'] = [
-            imp for imp in module['imports']
-            if any(imp.startswith(p) for p in module_names)
+        # Only track internal dependencies
+        all_imports = _find_imports(module_data["ast"])
+        module_names = {m['name'] for m in modules}
+        module_data["internal_deps"] = [
+            imp['full_path'] for imp in all_imports
+            if imp['full_path'] in module_names
         ]
+        
+        modules.append(module_data)
     
     return modules
 
@@ -127,18 +136,31 @@ def parse_pyproject(path: Path) -> dict:
     }
 
 def extract_docstrings(node: ast.AST) -> Dict[str, str]:
-    """Extract docstrings from AST nodes with error handling"""
-    docstrings = {}
-    for child in ast.iter_child_nodes(node):
+    """Enhanced docstring extraction with context tracking"""
+    docs = {}
+    for child in ast.walk(node):
         if isinstance(child, (ast.Module, ast.ClassDef, ast.FunctionDef)):
             try:
                 docstring = ast.get_docstring(child, clean=True)
                 if docstring:
-                    key = f"{getattr(child, 'name', 'module')}:{child.lineno}"
-                    docstrings[key] = docstring
+                    key = f"{type(child).__name__}:{getattr(child, 'name', 'module')}"
+                    docs[key] = {
+                        "doc": docstring,
+                        "line": child.lineno,
+                        "context": _get_code_context(child)
+                    }
             except Exception as e:
                 continue
-    return docstrings
+    return docs
+
+def _get_code_context(node: ast.AST) -> str:
+    """Get surrounding code context for documentation"""
+    if isinstance(node, ast.ClassDef):
+        bases = [b.id for b in node.bases if isinstance(b, ast.Name)]
+        return f"class {node.name}({', '.join(bases)})"
+    elif isinstance(node, ast.FunctionDef):
+        return f"def {node.name}{_format_function_signature(node.args, node.returns)}"
+    return ""
 
 def download_pypi_package(name: str, version: str = None) -> Path:
     """Download PyPI package to temporary directory"""
@@ -177,27 +199,35 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
     return f"{package_root.name}." + ".".join(rel_path.with_suffix("").parts)
 
 def _find_imports(node: ast.AST) -> list:
+    """Collect imports with their source and type context"""
     imports = []
+    seen = set()
+    
     for n in ast.walk(node):
         if isinstance(n, ast.Import):
-            imports.extend(alias.name for alias in n.names)
+            for alias in n.names:
+                key = (alias.name, None, 'module')
+                if key not in seen:
+                    seen.add(key)
+                    imports.append({
+                        'name': alias.name.split('.')[0],
+                        'full_path': alias.name,
+                        'source': None,
+                        'type': 'module'
+                    })
         elif isinstance(n, ast.ImportFrom):
-            # Handle relative imports with proper dot calculation
-            module = n.module or ""
-            prefix = "." * (n.level - 1) if n.level > 0 else ""
-            
-            if prefix and module:
-                full_path = f"{prefix}{module}"
-            elif prefix:
-                full_path = prefix.rstrip('.')  # Handle parent package imports
-            else:
-                full_path = module
-                
-            imports.extend(
-                f"{full_path}.{name.name}" if full_path else name.name
-                for name in n.names
-            )
-    return [imp.strip('.') for imp in imports if imp]
+            module = n.module or ''
+            for alias in n.names:
+                key = (alias.name, module, 'object')
+                if key not in seen:
+                    seen.add(key)
+                    imports.append({
+                        'name': alias.name,
+                        'full_path': f"{module}.{alias.name}" if module else alias.name,
+                        'source': module,
+                        'type': 'object'
+                    })
+    return imports
 
 def extract_type_info(node: ast.AST) -> Dict[str, Any]:
     """Enhanced type hint parsing with qualified names"""
@@ -208,62 +238,48 @@ def extract_type_info(node: ast.AST) -> Dict[str, Any]:
         "variables": {}
     }
     
-    # Track nested class relationships
-    nested_classes = {}
+    # Track current class context using stack instead of parent references
+    class_stack = []
     
-    # First pass: identify nested classes
-    for child in ast.walk(node):
-        if isinstance(child, ast.ClassDef):
-            # Add top-level class name
-            type_info["cross_references"].add(child.name)
+    class TypeVisitor(ast.NodeVisitor):
+        def visit_ClassDef(self, node):
+            # Generate fully qualified class name
+            if class_stack:
+                full_name = f"{class_stack[-1]}.{node.name}"
+            else:
+                full_name = node.name
+                
+            type_info["cross_references"].add(full_name)
+            type_info["classes"][full_name] = {
+                "attributes": {},
+                "methods": {}
+            }
             
-            # Check for nested classes within this class
-            for inner_child in child.body:
-                if isinstance(inner_child, ast.ClassDef):
-                    # Create fully qualified name for nested class
-                    nested_class_name = f"{child.name}.{inner_child.name}"
-                    type_info["cross_references"].add(nested_class_name)
+            # Push current class to stack and process children
+            class_stack.append(full_name)
+            self.generic_visit(node)
+            class_stack.pop()
+            
+        def visit_FunctionDef(self, node):
+            # Capture method relationships
+            if class_stack:
+                class_name = class_stack[-1]
+                type_info["classes"][class_name]["methods"][node.name] = {
+                    "args": _get_args(node.args),
+                    "returns": _get_return_type(node.returns)
+                }
+            self.generic_visit(node)
+            
+        def visit_AnnAssign(self, node):
+            # Handle variable type annotations
+            if isinstance(node.target, ast.Name):
+                var_name = node.target.id
+                type_info["variables"][var_name] = _get_annotation(node.annotation)
     
-    def _track_references(annotation: str) -> str:
-        """Track type references in annotations"""
-        # Match qualified names and their components
-        for match in re.finditer(r"([A-Z]\w+(?:\.[A-Z]\w+)*)", annotation):
-            type_name = match.group(1)
-            # Track all viable components of the qualified name
-            parts = type_name.split('.')
-            for i in range(1, len(parts)+1):
-                candidate = '.'.join(parts[:i])
-                if candidate not in KNOWN_TYPES and candidate[0].isupper():
-                    type_info["cross_references"].add(candidate)
-        return annotation
-    
-    # Update _get_annotation to track references
-    def _get_annotation(node: ast.AST) -> str:
-        annotation = ast.unparse(node) if node else ""
-        return _track_references(annotation)
-    
-    for child in ast.walk(node):
-        # Function arguments and return types
-        if isinstance(child, ast.FunctionDef):
-            type_info["functions"][child.name] = {
-                "args": _get_arg_types(child.args),
-                "returns": _get_return_type(child.returns)
-            }
-        
-        # Class methods and attributes
-        elif isinstance(child, ast.ClassDef):
-            type_info["classes"][child.name] = {
-                "methods": {},
-                "attributes": _get_class_attributes(child)
-            }
-        
-        elif isinstance(child, ast.AnnAssign):
-            if isinstance(child.target, ast.Name):
-                type_info["variables"][child.target.id] = _get_annotation(child.annotation)
-    
+    TypeVisitor().visit(node)
     return type_info
 
-def _get_arg_types(args: ast.arguments) -> Dict[str, str]:
+def _get_args(args: ast.arguments) -> Dict[str, str]:
     """Extract argument types from a function definition."""
     arg_types = {}
     for arg in args.args:
@@ -274,14 +290,6 @@ def _get_arg_types(args: ast.arguments) -> Dict[str, str]:
 def _get_return_type(returns: ast.AST) -> str:
     """Extract return type annotation."""
     return _get_annotation(returns) if returns else "Any"
-
-def _get_class_attributes(cls: ast.ClassDef) -> Dict[str, str]:
-    """Extract class attribute type annotations."""
-    attributes = {}
-    for node in ast.walk(cls):
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            attributes[node.target.id] = _get_annotation(node.annotation)
-    return attributes
 
 def _get_annotation(node: ast.AST) -> str:
     """Extract type annotation from an AST node."""
@@ -306,4 +314,70 @@ def _get_annotation(node: ast.AST) -> str:
 def _get_package_name(path: Path) -> str:
     """Extract package name from filename"""
     match = re.search(r"([a-zA-Z0-9_\-]+)-\d+\.\d+\.\d+", path.name)
-    return match.group(1) if match else path.stem 
+    return match.group(1) if match else path.stem
+
+def find_python_packages(path: Path) -> dict:
+    """Discover Python packages in a given directory path."""
+    packages = {}
+    
+    for entry in path.iterdir():
+        # Check against all exclusion patterns
+        if any(fnmatch.fnmatch(part, pattern) 
+               for part in entry.parts 
+               for pattern in EXCLUDE_PATTERNS):
+            continue
+            
+        if entry.is_dir():
+            # Add package discovery logic here
+            if (entry / "__init__.py").exists():
+                pkg_name = entry.name
+                packages[pkg_name] = {
+                    "path": entry,
+                    "modules": find_python_packages(entry)  # Recursive discovery
+                }
+            else:
+                # Handle non-package directories
+                packages.update(find_python_packages(entry))
+                
+    return packages 
+
+def _find_constants(node: ast.AST) -> Dict[str, Any]:
+    """Find module-level constants with type hints"""
+    constants = {}
+    for n in ast.walk(node):
+        if isinstance(n, ast.Assign):
+            for target in n.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = {
+                        "value": ast.unparse(n.value),
+                        "type": _get_annotation(n.annotation) if getattr(n, 'annotation', None) else None,
+                        "line": n.lineno
+                    }
+        elif isinstance(n, ast.AnnAssign):
+            if isinstance(n.target, ast.Name):
+                constants[n.target.id] = {
+                    "value": ast.unparse(n.value) if n.value else None,
+                    "type": _get_annotation(n.annotation),
+                    "line": n.lineno
+                }
+    return constants
+
+def _find_usage_examples(node: ast.AST) -> list:
+    """Extract usage examples from docstrings and tests"""
+    examples = []
+    for n in ast.walk(node):
+        if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant):
+            if "Example:" in (docstring := n.value.value):
+                examples.append({
+                    "type": "doctest",
+                    "content": "\n".join(line.strip() for line in docstring.split("\n")),
+                    "line": n.lineno
+                })
+        elif isinstance(n, ast.FunctionDef) and n.name.startswith("test_"):
+            examples.append({
+                "type": "pytest",
+                "name": n.name,
+                "line": n.lineno,
+                "body": ast.unparse(n)
+            })
+    return examples 

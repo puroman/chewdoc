@@ -13,9 +13,13 @@ def test_myst_generation(tmp_path):
         "modules": [{
             "name": "testmod",
             "path": "/path/testmod.py",
-            "imports": [],
+            "imports": [
+                {'name': 'Path', 'full_path': 'pathlib.Path', 'source': 'pathlib', 'type': 'class'},
+                {'name': 'List', 'full_path': 'typing.List', 'source': 'typing', 'type': 'type'},
+                {'name': 'generate_myst', 'full_path': 'chewdoc.formatters.myst_writer.generate_myst', 'source': 'chewdoc.formatters.myst_writer', 'type': 'function'}
+            ],
             "internal_deps": [],
-            "types": {
+            "type_info": {
                 "cross_references": set(),
                 "functions": {},
                 "classes": {},
@@ -49,7 +53,7 @@ def test_module_relationships_in_output(tmp_path):
             "path": "/path/testmod.py",
             "imports": ["os", "sys"],
             "internal_deps": [],
-            "types": {
+            "type_info": {
                 "cross_references": set(),
                 "functions": {},
                 "classes": {},
@@ -80,7 +84,7 @@ def test_cross_reference_validation(tmp_path):
             "path": "/path/testmod.py",
             "imports": [],
             "internal_deps": [],
-            "types": {
+            "type_info": {
                 "cross_references": ["MyType", "external.Type"],
                 "functions": {
                     "test": {
@@ -112,7 +116,7 @@ def test_module_relationship_visualization(tmp_path):
             "imports": ["os", "other.module"],
             "internal_deps": ["other.module"],
             "path": "/path/testmod.py",
-            "types": {
+            "type_info": {
                 "cross_references": set(),
                 "functions": {},
                 "classes": {},
@@ -136,7 +140,7 @@ def test_format_empty_module(tmp_path):
             "imports": [],
             "internal_deps": [],
             "path": "/path/emptymod.py",
-            "types": {
+            "type_info": {
                 "cross_references": set(),
                 "functions": {},
                 "classes": {},
@@ -166,7 +170,7 @@ def test_known_type_formatting(tmp_path):
             "path": "/path/testmod.py",
             "imports": [],
             "internal_deps": [],
-            "types": {
+            "type_info": {
                 "cross_references": {"List"},
                 "functions": {
                     "test": {
@@ -207,7 +211,7 @@ def test_class_formatting(tmp_path):
         "author": "Tester",
         "modules": [{
             "name": "testmod",
-            "types": {
+            "type_info": {
                 "classes": {
                     "TestClass": {
                         "attributes": {"name": "str", "value": "int"}
@@ -228,7 +232,7 @@ def test_empty_type_info(tmp_path):
     test_data = {
         "modules": [{
             "name": "testmod",
-            "types": {
+            "type_info": {
                 "cross_references": set(),
                 "functions": {},
                 "classes": {},
@@ -249,7 +253,7 @@ def test_generic_type_formatting(tmp_path):
     test_data = {
         "modules": [{
             "name": "testmod",
-            "types": {
+            "type_info": {
                 "functions": {
                     "test": {
                         "args": {"items": "List[Dict[str, int]]"},
