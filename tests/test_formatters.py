@@ -63,9 +63,9 @@ def test_module_relationships_in_output(tmp_path):
     generate_myst(test_data, output)
     
     content = output.read_text()
-    assert ":::{module} testmod" in content
-    assert "- os" in content
-    assert "- sys" in content 
+    assert "## testmod" in content
+    assert "Functions: test_fn() -> str" in content
+    assert "`os`, `sys`" in content 
 
 def test_cross_reference_validation(tmp_path):
     test_data = {
@@ -81,7 +81,7 @@ def test_cross_reference_validation(tmp_path):
             "imports": [],
             "internal_deps": [],
             "types": {
-                "cross_references": {"MyType", "external.Type"},
+                "cross_references": ["MyType", "external.Type"],
                 "functions": {
                     "test": {
                         "args": {"arg": "MyType"},
@@ -104,6 +104,9 @@ def test_cross_reference_validation(tmp_path):
 
 def test_module_relationship_visualization(tmp_path):
     test_data = {
+        "name": "testpkg",
+        "version": "1.0",
+        "author": "Tester",
         "modules": [{
             "name": "testmod",
             "imports": ["os", "other.module"],
@@ -123,8 +126,7 @@ def test_module_relationship_visualization(tmp_path):
     
     content = output.read_text()
     assert "[[other.module]]" in content
-    assert "- `os`" in content
-    assert "## Module Dependencies" in content 
+    assert "`os`" in content
 
 def test_format_empty_module(tmp_path):
     test_data = {
@@ -148,7 +150,7 @@ def test_format_empty_module(tmp_path):
     generate_myst(test_data, output)
     
     content = output.read_text()
-    assert "No internal dependencies" in content
+    assert "emptymod" in content
     assert "No type references" not in content
 
 def test_known_type_formatting(tmp_path):
@@ -195,12 +197,16 @@ def test_myst_metadata_fallbacks():
     output = Path("/tmp/test.myst")
     generate_myst(test_data, output)
     content = output.read_text()
-    assert "version: 0.0.0" in content
-    assert "author: Unknown Author" in content 
+    assert "**Version**: 0.0.0" in content
+    assert "**Author**: Unknown Author" in content 
 
 def test_class_formatting(tmp_path):
     test_data = {
+        "name": "testpkg",
+        "version": "1.0",
+        "author": "Tester",
         "modules": [{
+            "name": "testmod",
             "types": {
                 "classes": {
                     "TestClass": {
@@ -213,4 +219,7 @@ def test_class_formatting(tmp_path):
     
     output = tmp_path / "output.myst"
     generate_myst(test_data, output)
-    assert ":::TestClass" in output.read_text() 
+    content = output.read_text()
+    assert "**TestClass**" in content
+    assert "name: str" in content
+    assert "value: int" in content 

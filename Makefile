@@ -2,7 +2,7 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python
 UV = $(VENV)/bin/uv
 
-.PHONY: venv test clean
+.PHONY: venv test clean docs
 
 venv:
 	@echo "Creating virtual environment..."
@@ -16,5 +16,10 @@ venv:
 test: venv
 	$(PYTHON) -m pytest -v --cov=src --cov-report=term-missing tests/
 
+docs: venv
+	@echo "Generating project documentation..."
+	mkdir -p docs
+	$(PYTHON) -m chewdoc package . --local --output docs/chewdoc.myst
+
 clean:
-	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info
+	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs

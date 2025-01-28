@@ -5,15 +5,12 @@ CLI_HELP = {
     "local": "Treat source as local directory"
 }
 
-META_TEMPLATE = """\
-:::{{package_info}}
-name: {name}
-version: {version}
-author: {author}
-license: {license}
-dependencies: {dependencies}
-python_requires: {python_requires}
-:::
+META_TEMPLATE = """### Package Overview
+**Name**: {name}  
+**Version**: {version}  
+**Author**: {author}  
+**Interface**: {python_requires}  
+**Dependencies**: {dependencies}
 """
 
 MODULE_TEMPLATE = """\
@@ -23,11 +20,8 @@ MODULE_TEMPLATE = """\
 :::
 """
 
-API_REF_TEMPLATE = """\
-:::{{apiref}} {name}
-{signature}
+API_REF_TEMPLATE = """`{name}`{signature}
 {doc}
-:::
 """
 
 RELATIONSHIP_TEMPLATE = """\

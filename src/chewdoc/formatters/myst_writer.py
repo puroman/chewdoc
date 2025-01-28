@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict, Any
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE, API_REF_TEMPLATE, RELATIONSHIP_TEMPLATE
 
-KNOWN_TYPES = {"List", "Dict", "Optional", "Union"}  # Basic Python types
+KNOWN_TYPES = {"List", "Dict", "Optional", "Union", "Sequence", "Iterable"}  # Basic Python types
 
 def generate_myst(package_data: Dict[str, Any], output_path: Path) -> None:
     """Generate MyST documentation with validation"""
@@ -31,47 +31,44 @@ def _format_metadata(package_data: Dict[str, Any]) -> str:
     )
 
 def _format_modules(modules: list) -> str:
-    """Format modules section with fallbacks"""
-    if not modules:
-        return "\nNo modules found in package\n"
-    
-    sections = []
-    for module in modules:
-        sections.append(MODULE_TEMPLATE.format(
-            name=module.get("name", "Unnamed Module"),
-            description=_format_docstrings(module.get("docstrings", {})),
-            dependencies="\n".join([f"- {imp}" for imp in module.get("imports", [])])
-        ))
-        sections.append(_format_type_info(module["types"]))
-        sections.append(f"\n**Source**: `{module.get('path', 'unknown path')}`\n")
-        sections.append(_format_relationships(module))
-    return "\n".join(sections)
+    """Single-line module summaries with key details"""
+    return "\n".join(
+        f"## {m.get('name', 'unnamed_module')}\n"
+        f"{_format_docstrings(m.get('docstrings', {}))}\n"
+        f"**Exports**: {_format_exports(m.get('types', {}))}\n" 
+        f"**Imports**: {', '.join(m.get('imports', []))}\n"
+        for m in modules
+    )
+
+def _format_exports(types: dict) -> str:
+    """Combine all exports in one line"""
+    return ", ".join([
+        *types.get("functions", {}).keys(),
+        *types.get("classes", {}).keys()
+    ])
 
 def _format_type_info(type_info: Dict[str, Any]) -> str:
-    """Add cross-references section"""
-    sections = []
+    """Ultra-compact type formatting"""
+    lines = []
+    if refs := type_info.get("cross_references"):
+        lines.append(f"Types: {', '.join(sorted(refs))}")
     
-    # Handle cross references safely
-    if type_info.get("cross_references"):
-        sections.append("\n### Type References\n")
-        sections.extend(f"- [[{t}]]" for t in sorted(type_info["cross_references"]))
-    
-    # Format functions if present
-    for func, details in type_info.get("functions", {}).items():
-        sections.append(API_REF_TEMPLATE.format(
-            name=func,
-            signature=_format_function_signature(details),
-            doc=""
+    if funcs := type_info.get("functions"):
+        lines.append("Functions: " + ", ".join(
+            f"{name}{_short_sig(details)}" 
+            for name, details in funcs.items()
         ))
     
-    # Format classes only if they exist
-    for cls, details in type_info.get("classes", {}).items():
-        sections.append(f":::{cls}")
-        for attr, type_hint in details.get("attributes", {}).items():
-            sections.append(f"- {attr}: {type_hint}")
-        sections.append(":::")
+    if classes := type_info.get("classes"):
+        lines.append("Classes: " + ", ".join(
+            f"{cls}({', '.join(details['attributes'])})"
+            for cls, details in classes.items()
+        ))
     
-    return "\n".join(sections)
+    return "\n".join(lines)
+
+def _short_sig(details: dict) -> str:
+    return f"({len(details['args'])} args) -> {details['returns']}"
 
 def _format_type_reference(type_str: str) -> str:
     """Format type strings as links when possible"""
@@ -96,14 +93,17 @@ def _format_docstrings(docstrings: Dict[str, str]) -> str:
     )
 
 def _format_relationships(module: dict) -> str:
-    """Format module dependency relationships"""
-    internal_deps = module.get("internal_deps", [])
-    imports = module.get("imports", [])
+    """Compact relationship formatting"""
+    deps = [
+        *(f"[[{dep}]]" for dep in module.get("internal_deps", [])),
+        *(f"`{imp}`" for imp in module.get("imports", []) 
+          if imp not in module.get("internal_deps", []))
+    ]
+    return f"**Dependencies**: {', '.join(deps)}\n" if deps else ""
+
+def _compact_imports(imports: list) -> str:
+    """Compact imports formatting"""
+    if not imports:
+        return ""
     
-    internal = "\n".join(f"- [[{dep}]]" for dep in internal_deps)
-    external = "\n".join(f"- `{dep}`" for dep in imports if dep not in internal_deps)
-    
-    return RELATIONSHIP_TEMPLATE.format(
-        dependencies=internal or "No internal dependencies",
-        external=external or "No external dependencies"
-    ) 
+    return "**Imports**: " + ", ".join(f"`{imp}`" for imp in imports) 
