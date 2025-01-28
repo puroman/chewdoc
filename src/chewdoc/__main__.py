@@ -1,11 +1,11 @@
 import click
-from chewdoc.cli import cli as main_cli
+from .cli import cli
 
 
 def main():
     """Entry point for the chewdoc CLI"""
     try:
-        main_cli(standalone_mode=False)
+        cli()
     except click.UsageError as e:
         click.echo(str(e), err=True)
         exit(2)

@@ -14,68 +14,44 @@ from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
 class MystWriter:
     def __init__(self, config: Optional[ChewdocConfig] = None):
         self.config = config or ChewdocConfig()
+        self.package_data = {}
         self.config.max_example_lines = getattr(self.config, 'max_example_lines', 15)  # Add default
 
     def generate(self, package_data: dict, output_path: Path, verbose: bool = False) -> None:
         """Generate structured MyST documentation with separate files"""
-        self.package_data = package_data
-        start_time = datetime.now()
-        if verbose:
-            click.echo(f"📄 Starting MyST generation at {start_time:%H:%M:%S}")
-            click.echo(f"📂 Output directory: {output_path}")
-
-        if not package_data:
-            raise ValueError("No package data provided")
-
-        # Create output directory structure
-        package_name = package_data.get("name", "unnamed_package").split(".")[-1]
-        output_dir = output_path / f"{package_name}_docs"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        main_output = output_dir / "index.myst"
-
-        # Generate main package index
-        main_output.write_text(self._format_package_index(package_data))
-
-        # Generate module files
-        module_count = len(package_data.get("modules", []))
-        for idx, module in enumerate(package_data.get("modules", []), 1):
-            if verbose:
-                click.echo(f"📝 Processing module {idx}/{module_count}: {module['name']}")
-            module_name = module["name"].split(".src.")[-1].replace(".", "_")
-            module["config"] = self.config  # Inject config into module data
-            module_path = output_dir / f"{module_name}.myst"
-            module_path.write_text(self._format_module_content(module))
-
-        if verbose:
-            duration = datetime.now() - start_time
-            click.echo(f"✅ Documentation generated in {duration.total_seconds():.3f}s")
-            click.echo(f"📑 Created {len(package_data.get('modules', []))} module files")
-            click.echo(f"📂 Output location: {output_dir.resolve()}")
-
-        # Add debug output
-        if verbose:
-            click.echo("\n[DEBUG] Final package data structure:")
-            click.echo(f"Modules: {len(package_data.get('modules', []))}")
-            for mod in package_data.get("modules", [])[:3]:
-                click.echo(f"\nModule: {mod['name']}")
-                click.echo(f"Package: {package_data['package']}")
-                click.echo(f"Constants: {list(mod.get('constants', {}).keys())[:3]}...")
-                click.echo(f"Dependencies: {mod.get('internal_deps', [])[:3]}...")
-                click.echo(f"Examples: {len(mod.get('examples', []))}")
+        if not package_data or "modules" not in package_data:
+            raise ValueError("Invalid package data")
+            
+        # Ensure required fields exist
+        package_data.setdefault("name", "Unknown Package")
+        package_data.setdefault("version", "0.0.0")
+        package_data.setdefault("author", "Unknown")
+        package_data.setdefault("license", "Not specified")
+        package_data.setdefault("python_requires", ">=3.6")
+        package_data.setdefault("package", package_data["name"])
+        
+        self.package_data = package_data  # Store for module formatting
+        
+        # Create output directory if needed
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Generate content
+        content = self._format_package_index(package_data)
+        output_path.write_text(content)
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
         content = [
             f"# {package_data['name']} Documentation\n",
             "## Package Overview",
-            META_TEMPLATE.format(**package_data),
-            "\n## Modules\n",
+            self._format_metadata(package_data),
+            "\n## Modules\n"
         ]
-
-        for module in package_data.get("modules", []):
-            module_name = module["name"].replace(".", "_")
-            content.append(f"- [[{module['name']}]({module_name}.myst)]")
-
+        
+        for module in package_data["modules"]:
+            module.setdefault("internal_deps", [])
+            content.append(self._format_module_content(module))
+            
         return "\n".join(content)
 
     def _format_module_content(self, module: dict) -> str:
@@ -184,14 +160,14 @@ class MystWriter:
         return "\n\n".join(sections) or "No public API elements"
 
     def _format_metadata(self, package_data: Dict[str, Any]) -> str:
-        """Format package metadata section with fallbacks"""
+        """Format package metadata with fallback values"""
         return META_TEMPLATE.format(
             name=package_data.get("name", "Unnamed Package"),
             version=package_data.get("version", "0.0.0"),
             author=package_data.get("author", "Unknown Author"),
-            license=package_data.get("license", "Proprietary"),
-            dependencies="\n  - ".join(package_data.get("dependencies", [])),
-            python_requires=package_data.get("python_requires", ">=3.6"),
+            license=package_data.get("license", "Not specified"),
+            dependencies=", ".join(package_data.get("dependencies", ["None"])),
+            python_requires=package_data.get("python_requires", "Not specified")
         )
 
     def _format_role(self, module: dict) -> str:

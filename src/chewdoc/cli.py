@@ -1,35 +1,31 @@
+from ._version import __version__
 import click
 from chewdoc.core import analyze_package, generate_docs
 from pathlib import Path
 from datetime import datetime
 
 
-@click.group(invoke_without_command=True)
-@click.pass_context
-def cli(ctx):
+@click.group()
+@click.version_option(__version__)
+def cli():
     """Generate LLM-optimized documentation from Python packages"""
-    if ctx.invoked_subcommand is None:
-        raise click.UsageError("Missing command. Use 'chew' directly.")
-
+    pass
 
 @cli.command()
 @click.argument("source")
 @click.option("--version", help="Package version")
 @click.option("--local", is_flag=True, help="Local package")
-@click.option("--pypi", is_flag=True, help="Analyze PyPI package")
-@click.option("--url", help="Analyze from Git URL")
-@click.option("--output", "-o", type=click.Path(), default="chewdoc-output", 
-             help="Output directory path", show_default=True)
+@click.option("--output", "-o", default="docs", help="Output directory")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed progress")
-def chew(source, version, local, pypi, url, output, verbose):
-    """Generate documentation for a Python package/module"""
+def chew(source, version, local, output, verbose):
+    """Main command implementation"""
     start_time = datetime.now()
     
     # Determine source type
-    if sum([local, pypi, url is not None]) != 1:
-        raise click.UsageError("Must specify exactly one of --local, --pypi, or --url")
+    if sum([local]) != 1:
+        raise click.UsageError("Must specify exactly one of --local")
 
-    source_type = "local" if local else "pypi" if pypi else "url"
+    source_type = "local"
     
     # Actual processing logic
     try:

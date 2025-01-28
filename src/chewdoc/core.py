@@ -41,7 +41,7 @@ def analyze_package(
         click.echo(f"🚀 Starting analysis at {start_time:%H:%M:%S.%f}"[:-3])
         click.echo(f"📦 Package source: {source}")
 
-    config = config or load_config()
+    config = config or ChewdocConfig()
     try:
         if verbose:
             click.echo("🔍 Fetching package metadata...")

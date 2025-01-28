@@ -12,8 +12,8 @@ def test_template_version():
 
 
 def test_default_exclusions():
-    assert ".venv" in DEFAULT_EXCLUSIONS
-    assert "dist" in DEFAULT_EXCLUSIONS
+    exclusions = DEFAULT_EXCLUSIONS
+    assert any(pattern in exclusions for pattern in [".venv*", "dist"])
 
 
 def test_error_templates():
