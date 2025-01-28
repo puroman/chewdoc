@@ -635,24 +635,13 @@ def _generate_usage_examples(ast_node: ast.AST) -> list:
     examples = []
 
     class ExampleVisitor(ast.NodeVisitor):
-        def visit_FunctionDef(self, node):
-            if node.name.startswith("test_"):
-                return
-
-            example = {
-                "type": "generated",
-                "function": node.name,
-                "signature": _format_function_signature(node.args, node.returns),
-                "code": f"result = {node.name}(",
-            }
-
-            # Generate parameter placeholders
-            params = []
-            for arg in node.args.args:
-                params.append(f"{arg.arg}=...")
-            example["code"] += ", ".join(params) + ")"
-
-            examples.append(example)
+        def visit_FunctionDef(self, node: ast.FunctionDef):
+            if node.name.startswith("test_") or node.name.startswith("example_"):
+                example = {
+                    "code": ast.unparse(node),
+                    "description": (ast.get_docstring(node) or "").split("\n")[0]
+                }
+                self.examples.append(example)
             self.generic_visit(node)
 
     ExampleVisitor().visit(ast_node)

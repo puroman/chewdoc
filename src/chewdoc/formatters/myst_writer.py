@@ -90,7 +90,7 @@ def _format_module_content(module: dict) -> str:
         layer_section=_format_architecture_layer(module),
         description=module.get("description") or infer_responsibilities(module),
         dependencies=_format_dependencies(module["internal_deps"]),
-        usage_examples=_format_usage_examples(module.get("examples", [])),
+        usage_examples=_format_usage_examples(module.get("examples", []), config=module.get("config")),
     )
 
 
@@ -210,10 +210,17 @@ def _format_architecture_layer(module: dict) -> str:
 
 
 def _format_dependencies(deps: list) -> str:
-    """Format internal dependencies list"""
+    """Format internal dependencies as Mermaid graph"""
     if not deps:
         return "No internal dependencies"
-    return "\n".join(f"- [[{dep}]]" for dep in sorted(deps))
+    
+    nodes = []
+    links = []
+    for i, dep in enumerate(sorted(deps)):
+        nodes.append(f"    N{i}[{dep}]")
+        links.append(f"    N{i} -->|uses| {dep.replace('.', '_')}")
+    
+    return "graph TD\n" + "\n".join(nodes + links)
 
 
 def _format_modules(modules: list) -> str:
@@ -235,21 +242,29 @@ def _format_function_signature(args: ast.arguments, returns: ast.AST, config: Ch
     return f"({', '.join(params)})"
 
 
-def _format_usage_examples(examples: list) -> str:
+def _format_usage_examples(examples: list, config: ChewdocConfig) -> str:
     """Format usage examples with proper code blocks"""
     if not examples:
         return "No usage examples available"
-
+    
     formatted = []
-    for idx, example in enumerate(examples, 1):
+    for idx, example in enumerate(examples[:3], 1):  # Show max 3 examples
         code = example.get("code", "")
-        if not code.strip():
-            continue
-
+        
+        # Trim long examples
+        lines = code.split("\n")
+        if len(lines) > config.max_example_lines:
+            code = "\n".join(lines[:config.max_example_lines]) 
+            code += f"\n# ... truncated {len(lines)-config.max_example_lines} lines"
+        
+        desc = example.get("description", "")
+        if desc:
+            desc = f"*{desc}*"
+            
         formatted.append(
             f"### Example {idx}\n"
-            f"```python\n{code}\n```\n"
-            f"{example.get('description', '')}"
+            f"{desc}\n"
+            f"```python\n{code}\n```"
         )
-
-    return "\n\n".join(formatted) or "No valid usage examples found"
+    
+    return "\n\n".join(formatted)
