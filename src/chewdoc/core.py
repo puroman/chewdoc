@@ -13,7 +13,7 @@ try:
     import tomli
 except ImportError:
     import tomllib as tomli  # Python 3.11+
-from chewdoc.formatters.myst_writer import _format_function_signature, generate_myst
+from chewdoc.formatters.myst_writer import MystWriter
 from chewdoc.utils import get_annotation, infer_responsibilities
 import re
 from chewdoc.constants import AST_NODE_TYPES
@@ -320,40 +320,10 @@ def download_pypi_package(name: str, version: str = None) -> Path:
         return extract_dir / downloaded[0].stem.split("-")[0]
 
 
-def generate_docs(
-    package_info: Dict[str, Any],
-    output_path: Path,
-    config: Optional[ChewdocConfig] = None,
-    verbose: bool = False
-) -> None:
-    """Generate MyST documentation from package analysis data.
-
-    Creates a documentation directory structure with:
-    - Module documentation files
-    - API reference
-    - Cross-references
-    - Usage examples
-
-    Args:
-        package_info: Package analysis data from analyze_package()
-        output_path: Directory to write documentation files
-        config: Optional configuration object
-        verbose: Whether to show detailed progress
-
-    Example:
-        ```python
-        info = analyze_package("mypackage", is_local=True)
-        generate_docs(info, "docs/mypackage")
-        ```
-    """
-    config = config or load_config()
-    generate_myst(
-        package_info,
-        output_path,
-        template_dir=config.template_dir,
-        enable_cross_refs=config.enable_cross_references,
-        verbose=verbose
-    )
+def generate_docs(package_info: dict, output_path: Path, verbose: bool = False) -> None:
+    """Generate documentation from analyzed package data"""
+    formatter = MystWriter(config=package_info.get("config"))
+    formatter.generate(package_info, output_path, verbose=verbose)
 
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
