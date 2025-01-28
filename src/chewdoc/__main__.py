@@ -1,6 +1,7 @@
 import click
 from chewdoc.cli import cli as main_cli
 
+
 def main():
     """Entry point for the chewdoc CLI"""
     try:
@@ -12,5 +13,6 @@ def main():
         click.echo(f"An unexpected error occurred: {e}", err=True)
         exit(1)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

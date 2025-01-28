@@ -5,23 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chewdoc"
 version = "0.1.0"
-description = "Makes docs that both AI and humans can easily understand and work with"
+description = "ChewDoc is a powerful Python documentation generation tool that converts package metadata and docstrings into MyST-compatible markdown"
 authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
-    "click>=8.1.0",  # CLI interface and command handling
-    "requests>=2.25.1",  # HTTP requests for PyPI API interactions
-    "tomli>=0.10.2",  # TOML parsing for pyproject.toml files
-    "rich>=10.0.0"  # Enhanced terminal output and formatting
+    "click>=8.0.3",  # CLI interface and command handling
+    "requests>=2.26.0",  # HTTP requests for PyPI API interactions
+    "tomli>=2.0.1",  # TOML parsing for pyproject.toml files
+    "rich>=12.6.0",  # Enhanced terminal output and formatting
+    "pydantic>=1.10.6"  # Added missing dependency
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest >=7.0",  # Testing framework
-    "pytest-cov >=4.0",  # Test coverage reporting
-    "flake8 >=6.0",  # Linting and code style checking
-    "black >=23.0"  # Code formatting
+    "pytest >=7.0.1",  # Testing framework
+    "pytest-cov >=3.0.0",  # Test coverage reporting
+    "flake8 >=4.0.1",  # Linting and code style checking
+    "black >=22.3.0"  # Code formatting
 ]
 
 # Configures setuptools to automatically find and include all Python packages

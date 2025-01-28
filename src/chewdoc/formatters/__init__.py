@@ -1,1 +1,1 @@
-# Initialize formatters package 
+# Initialize formatters package

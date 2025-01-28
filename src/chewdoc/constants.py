@@ -3,7 +3,7 @@ CLI_HELP = {
     "version": "Specify package version (PyPI only)",
     "output": "Output path for generated documentation",
     "local": "Treat source as local directory",
-    "context": "Documentation detail level (basic|full|ai-assisted)"
+    "context": "Documentation detail level (basic|full|ai-assisted)",
 }
 
 META_TEMPLATE = """### Package Overview
@@ -70,29 +70,6 @@ graph TD
 :::
 """
 
-# Expanded type definitions for better context
-KNOWN_TYPES = {
-    # Core types
-    "List", "Dict", "Optional", "Union", "Sequence", "Iterable", "Any",
-    # Context managers
-    "ContextManager", "AsyncContextManager",
-    # Async types
-    "Coroutine", "AsyncIterator", "AsyncGenerator",
-    # Callable types
-    "Callable", "Generator", "TypeVar"
-}
-
-# Consolidated exclusion patterns
-EXCLUDE_PATTERNS = [
-    # Development artifacts
-    '.venv', '.env', '__pycache__', '.pytest_cache', 'dist', 'build',
-    '*.egg-info', '.ipynb_checkpoints', '.git*',
-    # IDE files
-    '.vscode', '.idea',
-    # System files
-    '*.pyc', '*.pyo', '*.pyd', '*.log', '.DS_Store', 'Thumbs.db'
-]
-
 # Simplified exclusion patterns
-EXCLUDE_DIRS = ['.venv', '__pycache__', '.git', 'dist', 'build']
-EXCLUDE_FILES = ['__init__.py', '*.pyc', '*.pyo'] 
+EXCLUDE_DIRS = [".venv", "__pycache__", ".git", "dist", "build"]
+EXCLUDE_FILES = ["__init__.py", "*.pyc", "*.pyo"]

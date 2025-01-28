@@ -1,0 +1,5 @@
+[tool.chewdoc]
+exclude_patterns = ["__pycache__", "*.test"]
+known_types = { "Sequence" = "collections.abc.Sequence" }
+enable_cross_references = true
+max_example_lines = 15 
