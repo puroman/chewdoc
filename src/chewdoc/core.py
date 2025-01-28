@@ -208,18 +208,33 @@ def extract_type_info(node: ast.AST) -> Dict[str, Any]:
         "variables": {}
     }
     
-    # Track class definitions
+    # Track nested class relationships
+    nested_classes = {}
+    
+    # First pass: identify nested classes
     for child in ast.walk(node):
         if isinstance(child, ast.ClassDef):
+            # Add top-level class name
             type_info["cross_references"].add(child.name)
+            
+            # Check for nested classes within this class
+            for inner_child in child.body:
+                if isinstance(inner_child, ast.ClassDef):
+                    # Create fully qualified name for nested class
+                    nested_class_name = f"{child.name}.{inner_child.name}"
+                    type_info["cross_references"].add(nested_class_name)
     
     def _track_references(annotation: str) -> str:
         """Track type references in annotations"""
-        # Match qualified names with at least two components
-        for match in re.finditer(r"\b([A-Z]\w+\.[A-Z]\w+)\b", annotation):
+        # Match qualified names and their components
+        for match in re.finditer(r"([A-Z]\w+(?:\.[A-Z]\w+)*)", annotation):
             type_name = match.group(1)
-            if type_name not in KNOWN_TYPES:
-                type_info["cross_references"].add(type_name)
+            # Track all viable components of the qualified name
+            parts = type_name.split('.')
+            for i in range(1, len(parts)+1):
+                candidate = '.'.join(parts[:i])
+                if candidate not in KNOWN_TYPES and candidate[0].isupper():
+                    type_info["cross_references"].add(candidate)
         return annotation
     
     # Update _get_annotation to track references
@@ -242,7 +257,6 @@ def extract_type_info(node: ast.AST) -> Dict[str, Any]:
                 "attributes": _get_class_attributes(child)
             }
         
-        # Variable annotations
         elif isinstance(child, ast.AnnAssign):
             if isinstance(child.target, ast.Name):
                 type_info["variables"][child.target.id] = _get_annotation(child.annotation)

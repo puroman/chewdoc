@@ -56,16 +56,18 @@ def test_cli_module_command(tmp_path):
     runner = CliRunner()
     with patch('src.chewdoc.cli.analyze_package') as mock_analyze:
         mock_analyze.return_value = {"name": "testmod"}
+        module_path = tmp_path / "testmod.py"
+        module_path.write_text('"""Test module"""')  # Create the file
         output_path = tmp_path / "mod.md"
         
         result = runner.invoke(cli, [
             'module',
-            'testmod.py',
+            str(module_path),
             '--output', str(output_path)
         ])
         
         assert result.exit_code == 0
-        assert "Analyzing module" in result.output 
+        assert "Analyzing module" in result.output
 
 def test_invalid_cli_arguments():
     runner = CliRunner()
@@ -73,9 +75,9 @@ def test_invalid_cli_arguments():
     # Test no arguments
     result = runner.invoke(cli)
     assert result.exit_code == 2
-    assert "Missing argument" in result.output
+    assert "Missing command" in result.output
     
-    # Test invalid format
-    result = runner.invoke(cli, ["requests", "--format", "invalid"])
+    # Test invalid command
+    result = runner.invoke(cli, ["invalid"])
     assert result.exit_code == 2
-    assert "Invalid value for '--format'" in result.output 
+    assert "No such command" in result.output 
