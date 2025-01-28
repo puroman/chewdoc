@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Dict, Any
-from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE, API_REF_TEMPLATE, RELATIONSHIP_TEMPLATE
-
-KNOWN_TYPES = {"List", "Dict", "Optional", "Union", "Sequence", "Iterable"}  # Basic Python types
+from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE, API_REF_TEMPLATE, RELATIONSHIP_TEMPLATE, KNOWN_TYPES
 
 def generate_myst(package_data: Dict[str, Any], output_path: Path) -> None:
     """Generate MyST documentation with validation"""

@@ -8,6 +8,7 @@ import shutil
 import tomli
 from chewdoc.formatters.myst_writer import generate_myst
 import re
+from chewdoc.constants import KNOWN_TYPES
 
 def analyze_package(source: str, version: str = None, is_local: bool = False) -> Dict[str, Any]:
     """Analyze a Python package with enhanced error handling"""
@@ -212,17 +213,13 @@ def extract_type_info(node: ast.AST) -> Dict[str, Any]:
         if isinstance(child, ast.ClassDef):
             type_info["cross_references"].add(child.name)
     
-    def _track_references(annotation: str, context: str = "") -> str:
-        """Track references with context awareness"""
-        # Match class names and generic types
-        pattern = r'\b((\w+\.)*[A-Z]\w*)\b(?:\[.*?\])?'
-        for match in re.finditer(pattern, annotation):
-            base_type = match.group(1).split("[")[0]  # Handle generics
-            if '.' in base_type:
-                type_info["cross_references"].add(base_type)
-                type_info["cross_references"].add(base_type.split('.')[-1])
-            else:
-                type_info["cross_references"].add(base_type)
+    def _track_references(annotation: str) -> str:
+        """Track type references in annotations"""
+        # Match qualified names with at least two components
+        for match in re.finditer(r"\b([A-Z]\w+\.[A-Z]\w+)\b", annotation):
+            type_name = match.group(1)
+            if type_name not in KNOWN_TYPES:
+                type_info["cross_references"].add(type_name)
         return annotation
     
     # Update _get_annotation to track references

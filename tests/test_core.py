@@ -195,3 +195,16 @@ def test_installed_package_path():
         mock_dist.return_value.locate_file.return_value = "/fake/path"
         path = get_package_path("requests", False)
         assert str(path) == "/fake/path" 
+
+def test_nested_class_references():
+    code = '''\
+class Outer:
+    class Inner: pass
+
+def process(o: Outer.Inner) -> None: pass
+'''
+    node = ast.parse(code)
+    type_info = extract_type_info(node)
+    
+    assert "Outer.Inner" in type_info["cross_references"]
+    assert "Outer" in type_info["cross_references"] 

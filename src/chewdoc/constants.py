@@ -32,4 +32,6 @@ RELATIONSHIP_TEMPLATE = """\
 ## External Dependencies
 {external}
 :::
-""" 
+"""
+
+KNOWN_TYPES = {"List", "Dict", "Optional", "Union", "Sequence", "Iterable", "Any"} 

@@ -223,3 +223,46 @@ def test_class_formatting(tmp_path):
     assert "**TestClass**" in content
     assert "name: str" in content
     assert "value: int" in content 
+
+def test_empty_type_info(tmp_path):
+    test_data = {
+        "modules": [{
+            "name": "testmod",
+            "types": {
+                "cross_references": set(),
+                "functions": {},
+                "classes": {},
+                "variables": {}
+            }
+        }]
+    }
+    
+    output = tmp_path / "output.myst"
+    generate_myst(test_data, output)
+    
+    content = output.read_text()
+    assert "Type References" not in content
+    assert "Functions" not in content
+    assert "Classes" not in content 
+
+def test_generic_type_formatting(tmp_path):
+    test_data = {
+        "modules": [{
+            "name": "testmod",
+            "types": {
+                "functions": {
+                    "test": {
+                        "args": {"items": "List[Dict[str, int]]"},
+                        "returns": "Optional[float]"
+                    }
+                }
+            }
+        }]
+    }
+    
+    output = tmp_path / "output.myst"
+    generate_myst(test_data, output)
+    
+    content = output.read_text()
+    assert "[List[Dict[str, int]]](#list)" in content
+    assert "[Optional[float]](#optional)" in content 

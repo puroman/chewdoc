@@ -66,3 +66,16 @@ def test_cli_module_command(tmp_path):
         
         assert result.exit_code == 0
         assert "Analyzing module" in result.output 
+
+def test_invalid_cli_arguments():
+    runner = CliRunner()
+    
+    # Test no arguments
+    result = runner.invoke(cli)
+    assert result.exit_code == 2
+    assert "Missing argument" in result.output
+    
+    # Test invalid format
+    result = runner.invoke(cli, ["requests", "--format", "invalid"])
+    assert result.exit_code == 2
+    assert "Invalid value for '--format'" in result.output 
