@@ -45,7 +45,7 @@ def analyze_package(
         package_root = get_package_path(source, is_local)
 
         package_info["modules"] = []
-        for module in process_modules(package_root):
+        for module in process_modules(package_root, config):
             module.update(
                 {
                     "docstrings": extract_docstrings(module["ast"]),
@@ -62,7 +62,7 @@ def analyze_package(
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 
-def process_modules(package_path: Path) -> list:
+def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     """Process Python modules in a package directory.
 
     Recursively discovers and analyzes Python modules in the package,
@@ -70,6 +70,7 @@ def process_modules(package_path: Path) -> list:
 
     Args:
         package_path: Root directory of the package
+        config: Configuration object
 
     Returns:
         List of module data dictionaries containing:
@@ -384,37 +385,39 @@ def extract_type_info(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
             class_stack.pop()
 
         def visit_FunctionDef(self, node):
-            # Capture method relationships
-            if class_stack:
-                class_name = class_stack[-1]
-                type_info["classes"][class_name]["methods"][node.name] = {
-                    "args": _get_args(node.args),
-                    "returns": _get_return_type(node.returns),
-                }
+            """Process function definition and collect type information."""
+            func_name = node.name
+            type_info["functions"][func_name] = {
+                "args": _get_arg_types(node.args, config),
+                "returns": _get_return_type(node.returns, config)
+            }
             self.generic_visit(node)
 
         def visit_AnnAssign(self, node):
-            # Handle variable type annotations
+            """Process annotated assignments."""
             if isinstance(node.target, ast.Name):
-                var_name = node.target.id
-                type_info["variables"][var_name] = _get_annotation(
+                type_info["variables"][node.target.id] = _get_annotation(
                     node.annotation, config
                 )
+            self.generic_visit(node)
 
     TypeVisitor().visit(node)
     return type_info
 
 
-def _get_args(args: ast.arguments) -> Dict[str, str]:
+def _get_arg_types(args: ast.arguments, config: ChewdocConfig) -> Dict[str, str]:
     """Extract argument types from a function definition."""
     arg_types = {}
+    # Handle cases with just ... in args
+    if not getattr(args, "args", None):
+        return arg_types
     for arg in args.args:
         if arg.annotation:
             arg_types[arg.arg] = _get_annotation(arg.annotation, config)
     return arg_types
 
 
-def _get_return_type(returns: ast.AST) -> str:
+def _get_return_type(returns: ast.AST, config: ChewdocConfig) -> str:
     """Extract return type annotation."""
     return _get_annotation(returns, config) if returns else "Any"
 
@@ -422,11 +425,14 @@ def _get_return_type(returns: ast.AST) -> str:
 def _get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
     """Extract type annotation from an AST node."""
     if isinstance(node, ast.Name):
-        return node.id
+        return config.known_types.get(node.id, node.id)
     elif isinstance(node, ast.Constant):
         return str(node.value)
     elif isinstance(node, ast.Subscript):
         value = _get_annotation(node.value, config)
+        # Handle Ellipsis in subscript slices
+        if isinstance(node.slice, ast.Ellipsis):
+            return f"{value}[...]"
         slice_val = _get_annotation(node.slice, config)
         return f"{value}[{slice_val}]"
     elif isinstance(node, ast.Attribute):
@@ -435,7 +441,9 @@ def _get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
     elif isinstance(node, ast.BinOp):
         left = _get_annotation(node.left, config)
         right = _get_annotation(node.right, config)
-        return f"{left} | {right}"  # Handle Union types
+        return f"{left} | {right}"
+    elif isinstance(node, ast.Ellipsis):
+        return "..."
     else:
         return str(node)
 
