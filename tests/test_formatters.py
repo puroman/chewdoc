@@ -1,63 +1,134 @@
 import pytest
 from pathlib import Path
-from chewdoc.formatters.myst_writer import generate_myst
+from unittest.mock import Mock
+from src.chewdoc.formatters.myst_writer import MystWriter
+from src.chewdoc.config import ChewdocConfig
 
-
-def test_myst_generation(tmp_path):
-    test_data = {
+@pytest.fixture
+def base_package():
+    return {
         "name": "testpkg",
-        "version": "1.0",
-        "author": "Tester",
+        "version": "1.0.0",
+        "author": "Test Author",
         "license": "MIT",
-        "dependencies": ["requests"],
+        "dependencies": [],
         "python_requires": ">=3.8",
-        "modules": [
-            {
-                "name": "testmod",
-                "path": "/path/testmod.py",
-                "imports": [
-                    {
-                        "name": "Path",
-                        "full_path": "pathlib.Path",
-                        "source": "pathlib",
-                        "type": "class",
-                    },
-                    {
-                        "name": "List",
-                        "full_path": "typing.List",
-                        "source": "typing",
-                        "type": "type",
-                    },
-                    {
-                        "name": "generate_myst",
-                        "full_path": "chewdoc.formatters.myst_writer.generate_myst",
-                        "source": "chewdoc.formatters.myst_writer",
-                        "type": "function",
-                    },
-                ],
-                "internal_deps": [],
-                "type_info": {
-                    "cross_references": set(),
-                    "functions": {},
-                    "classes": {},
-                    "variables": {},
-                },
-                "docstrings": {
-                    "module:1": "Module docstring",
-                    "test_fn:5": "Function docstring",
-                },
+        "package": "testpkg",
+        "modules": [{
+            "name": "testmod",
+            "docstrings": {"module:1": "Module docstring"},
+            "examples": [],
+            "imports": [],
+            "internal_deps": [],
+            "type_info": {
+                "cross_references": set(),
+                "functions": {},
+                "classes": {},
+                "variables": {}
             }
-        ],
+        }]
     }
 
+@pytest.fixture
+def config():
+    return ChewdocConfig()
+
+def test_myst_basic_generation(tmp_path, base_package):
+    writer = MystWriter(ChewdocConfig())
+    output_path = tmp_path / "output.md"
+    
+    writer.generate(base_package, output_path)
+    
+    content = output_path.read_text()
+    assert "# testpkg Documentation" in content
+    assert "## testmod" in content
+    assert "Module docstring" in content
+
+def test_myst_example_generation(tmp_path, base_package):
+    base_package["modules"][0]["examples"] = [{
+        "type": "doctest",
+        "content": ">>> print('test')\n'test'"
+    }]
+    
+    writer = MystWriter(ChewdocConfig())
+    output_path = tmp_path / "output.md"
+    writer.generate(base_package, output_path)
+    
+    content = output_path.read_text()
+    assert "### Usage Examples" in content
+    assert ">>> print('test')" in content
+
+def test_myst_type_references(tmp_path, base_package):
+    base_package["modules"][0]["type_info"]["cross_references"] = {"MyType"}
+    base_package["modules"][0]["type_info"]["functions"] = {
+        "test": {"args": {"param": "MyType"}, "returns": "Optional[MyType]"}
+    }
+    
+    writer = MystWriter(ChewdocConfig())
+    output_path = tmp_path / "output.md"
+    writer.generate(base_package, output_path)
+    
+    content = output_path.read_text()
+    assert "[[MyType]]" in content
+    assert "Optional[[MyType]]" in content
+
+def test_module_with_examples(tmp_path, base_package, config):
+    writer = MystWriter(config)
+    test_module = {
+        "name": "testmod",
+        "examples": [
+            {
+                "type": "doctest",
+                "content": ">>> print('example')\n'example'",
+                "line": 5
+            }
+        ]
+    }
+    base_package["modules"].append(test_module)
+    
     output = tmp_path / "output.myst"
-    generate_myst(test_data, output)
-
+    writer.generate(base_package, output)
+    
     content = output.read_text()
-    assert "# Package: testpkg" in content
-    assert "Function docstring" in content
-    assert ":::{doc} test_fn" in content
+    assert "Usage Examples" in content
+    assert ">>> print('example')" in content
 
+def test_cross_reference_formatting(tmp_path, base_package, config):
+    writer = MystWriter(config)
+    test_module = {
+        "name": "testmod",
+        "type_info": {
+            "cross_references": ["MyType", "external.Type"],
+            "functions": {
+                "test": {
+                    "args": {"arg": "MyType"},
+                    "returns": "List[external.Type]",
+                }
+            }
+        }
+    }
+    base_package["modules"].append(test_module)
+    
+    output = tmp_path / "output.myst"
+    writer.generate(base_package, output)
+    
+    content = output.read_text()
+    assert "[[MyType]]" in content
+    assert "[[external.Type]]" in content
+
+def test_metadata_fallbacks(tmp_path, config):
+    writer = MystWriter(config)
+    minimal_data = {
+        "name": "minimalpkg",
+        "modules": [{"name": "testmod"}]
+    }
+    
+    output = tmp_path / "output.myst"
+    writer.generate(minimal_data, output)
+    
+    content = output.read_text()
+    assert "**Version**: 0.0.0" in content
+    assert "**Author**: Unknown Author" in content
 
 def test_module_relationships_in_output(tmp_path):
     test_data = {
@@ -91,44 +162,6 @@ def test_module_relationships_in_output(tmp_path):
     assert "## testmod" in content
     assert "**Imports**: os, sys" in content
     assert "Functions: " not in content
-
-
-def test_cross_reference_validation(tmp_path):
-    test_data = {
-        "name": "testpkg",
-        "version": "1.0",
-        "author": "Tester",
-        "license": "MIT",
-        "dependencies": [],
-        "python_requires": ">=3.8",
-        "modules": [
-            {
-                "name": "testmod",
-                "path": "/path/testmod.py",
-                "imports": [],
-                "internal_deps": [],
-                "type_info": {
-                    "cross_references": ["MyType", "external.Type"],
-                    "functions": {
-                        "test": {
-                            "args": {"arg": "MyType"},
-                            "returns": "List[external.Type]",
-                        }
-                    },
-                    "classes": {},
-                    "variables": {},
-                },
-            }
-        ],
-    }
-
-    output = tmp_path / "output.myst"
-    generate_myst(test_data, output)
-
-    content = output.read_text()
-    assert "[[MyType]]" in content
-    assert "[[external.Type]]" in content
-    assert "[List[external.Type]]" in content
 
 
 def test_module_relationship_visualization(tmp_path):
@@ -229,15 +262,6 @@ def test_known_type_formatting(tmp_path):
 def test_myst_empty_input():
     with pytest.raises(ValueError):
         generate_myst({}, Path("/invalid"))
-
-
-def test_myst_metadata_fallbacks():
-    test_data = {"name": "minimal"}
-    output = Path("/tmp/test.myst")
-    generate_myst(test_data, output)
-    content = output.read_text()
-    assert "**Version**: 0.0.0" in content
-    assert "**Author**: Unknown Author" in content
 
 
 def test_class_formatting(tmp_path):

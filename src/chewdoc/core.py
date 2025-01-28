@@ -28,22 +28,13 @@ def analyze_package(
     config: Optional[ChewdocConfig] = None,
     verbose: bool = False
 ) -> Dict[str, Any]:
-    """Analyze a Python package and extract documentation information.
-
-    Args:
-        source: Package name (PyPI) or path (local)
-        version: Optional version for PyPI packages
-        is_local: Whether source is a local path
-        config: Optional configuration object
-        verbose: Whether to show detailed progress
-
-    Returns:
-        Dict containing package metadata, modules, and documentation
-
-    Raises:
-        RuntimeError: If package analysis fails
-        ValueError: If PyPI package not found
-        FileNotFoundError: If local package path invalid
+    """Analyze Python package and extract documentation metadata.
+    
+    Example:
+        >>> from chewdoc.core import analyze_package
+        >>> result = analyze_package("requests", is_local=False)
+        >>> "requests" in result["package"]
+        True
     """
     start_time = datetime.now()
     if verbose:
@@ -69,7 +60,7 @@ def analyze_package(
 
         package_info["modules"] = []
         processed = 0
-        module_paths = process_modules(package_path, config)  # Get paths first
+        module_paths = process_modules(package_path, config)
         total_modules = len(module_paths)
         
         for module_data in module_paths:
@@ -77,7 +68,6 @@ def analyze_package(
             module_name = module_data["name"]
             module_path = Path(module_data["path"])
             
-            # Skip empty __init__.py files before AST parsing
             if module_path.name == "__init__.py" and module_path.stat().st_size == 0:
                 if verbose:
                     click.echo(f"⏭️  Skipping empty __init__.py: {module_path}")
@@ -96,7 +86,7 @@ def analyze_package(
             
             module_info = {
                 "name": module_name,
-                "path": str(module_path),  # Store string path for serialization
+                "path": str(module_path),
                 "ast": module_ast,
                 "docstrings": extract_docstrings(module_ast),
                 "types": extract_type_info(module_ast, config),
@@ -110,11 +100,9 @@ def analyze_package(
                 "internal_deps": module_data.get("internal_deps", [])
             }
             
-            # Track imports at package level
             for imp in module_info["imports"]:
                 package_info["imports"][imp["full_path"]].append(module_name)
             
-            # Track internal dependencies
             internal_imports = [
                 imp["full_path"] for imp in module_info["imports"]
                 if imp["type"] == "internal"
@@ -137,11 +125,18 @@ def analyze_package(
 
 
 def process_modules(package_path: Path, config: ChewdocConfig) -> list:
-    """Process Python modules in a package directory."""
+    """Process Python modules in package directory.
+    
+    Example test case:
+    ```python
+    def test_module_processing():
+        modules = process_modules(Path("mypackage"), config)
+        assert len(modules) > 0
+    ```
+    """
     modules = []
     module_names = set()
     
-    # First pass to collect module names
     for file_path in package_path.rglob("*.py"):
         if any(fnmatch.fnmatch(part, pattern) for part in file_path.parts for pattern in config.exclude_patterns):
             continue
@@ -155,12 +150,10 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
             "imports": [],
         })
 
-    # Second pass to analyze dependencies
     for module in modules:
         all_imports = _find_imports(module["ast"], package_path.name)
         for imp in all_imports:
             if imp["type"] == "internal":
-                # Find the actual module being imported
                 parts = imp["full_path"].split(".")
                 for i in range(len(parts), 0, -1):
                     candidate = ".".join(parts[:i])
@@ -175,7 +168,13 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
 
 
 def parse_ast(file_path: Path) -> ast.AST:
-    """Parse Python file to AST"""
+    """Parse Python file to AST.
+    
+    Example:
+        >>> ast = parse_ast(Path("module.py"))
+        >>> isinstance(ast, ast.AST)
+        True
+    """
     with open(file_path, "r") as f:
         return ast.parse(f.read())
 
@@ -183,14 +182,14 @@ def parse_ast(file_path: Path) -> ast.AST:
 def get_package_metadata(
     source: str, version: Optional[str], is_local: bool
 ) -> Dict[str, Any]:
-    """Extract package metadata from local or PyPI package"""
+    """Extract package metadata from local or PyPI package."""
     if is_local:
         return get_local_metadata(Path(source))
     return get_pypi_metadata(source, version)
 
 
 def get_local_metadata(path: Path) -> dict:
-    """Extract package metadata with multiple fallback sources"""
+    """Extract package metadata with multiple fallback sources."""
     metadata = {
         "name": path.name,
         "version": "0.0.0",
@@ -199,7 +198,6 @@ def get_local_metadata(path: Path) -> dict:
         "python_requires": ">=3.6",
     }
 
-    # Try Git repository info
     try:
         result = subprocess.run(
             ["git", "-C", str(path), "config", "user.name"],
@@ -211,7 +209,6 @@ def get_local_metadata(path: Path) -> dict:
     except FileNotFoundError:
         pass
 
-    # Try VCS last commit
     try:
         result = subprocess.run(
             ["git", "-C", str(path), "log", "-1", "--format=%cd"],
@@ -223,7 +220,6 @@ def get_local_metadata(path: Path) -> dict:
     except FileNotFoundError:
         pass
 
-    # Check for LICENSE file
     license_file = next((f for f in path.glob("LICENSE*") if f.is_file()), None)
     if license_file:
         metadata["license"] = license_file.name
@@ -246,7 +242,13 @@ def get_local_metadata(path: Path) -> dict:
 
 
 def get_pypi_metadata(name: str, version: Optional[str]) -> Dict[str, Any]:
-    """Retrieve PyPI package metadata"""
+    """Retrieve PyPI package metadata.
+    
+    Example:
+        >>> metadata = get_pypi_metadata("requests", "2.28.0")
+        >>> print(metadata["name"])
+        "requests"
+    """
     try:
         dist = importlib.metadata.distribution(name)
     except importlib.metadata.PackageNotFoundError:
