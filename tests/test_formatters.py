@@ -197,3 +197,20 @@ def test_myst_metadata_fallbacks():
     content = output.read_text()
     assert "version: 0.0.0" in content
     assert "author: Unknown Author" in content 
+
+def test_class_formatting(tmp_path):
+    test_data = {
+        "modules": [{
+            "types": {
+                "classes": {
+                    "TestClass": {
+                        "attributes": {"name": "str", "value": "int"}
+                    }
+                }
+            }
+        }]
+    }
+    
+    output = tmp_path / "output.myst"
+    generate_myst(test_data, output)
+    assert ":::TestClass" in output.read_text() 

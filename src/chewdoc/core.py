@@ -62,22 +62,22 @@ def get_package_metadata(source: str, version: Optional[str], is_local: bool) ->
         return get_local_metadata(Path(source))
     return get_pypi_metadata(source, version)
 
-def get_local_metadata(pkg_path: Path) -> Dict[str, Any]:
-    """Extract metadata from local package"""
-    # Try pyproject.toml first
-    pyproject = pkg_path / "pyproject.toml"
-    if pyproject.exists():
-        return parse_pyproject(pyproject)
-        
-    # Fallback to setup.py
-    return {
-        "name": pkg_path.name,
-        "version": "0.0.0",
-        "author": "Unknown",
-        "license": "Proprietary",
-        "dependencies": [],
-        "python_requires": ">=3.6"
-    }
+def get_local_metadata(path: Path) -> dict:
+    """Extract package metadata from pyproject.toml or setup.py."""
+    try:
+        return parse_pyproject(path / "pyproject.toml")
+    except FileNotFoundError:
+        setup_py = path / "setup.py"
+        if setup_py.exists():
+            with open(setup_py) as f:
+                content = f.read()
+                name_match = re.search(r"name=['\"](.+?)['\"]", content)
+                version_match = re.search(r"version=['\"](.+?)['\"]", content)
+                return {
+                    "name": name_match.group(1) if name_match else path.name,
+                    "version": version_match.group(1) if version_match else "0.0.0"
+                }
+    return {"name": path.name, "version": "0.0.0"}
 
 def get_pypi_metadata(name: str, version: Optional[str]) -> Dict[str, Any]:
     """Retrieve PyPI package metadata"""
@@ -109,16 +109,17 @@ def get_package_path(source: str, is_local: bool) -> Path:
     except importlib.metadata.PackageNotFoundError:
         raise ValueError(f"Package {source} not installed")
 
-def parse_pyproject(path: Path) -> Dict[str, Any]:
+def parse_pyproject(path: Path) -> dict:
     """Parse pyproject.toml for package metadata"""
     with open(path, "rb") as f:
         data = tomli.load(f)
     
-    project = data.get("project", {})
+    # Check for poetry projects
+    project = data.get("project") or data.get("tool", {}).get("poetry", {})
     return {
         "name": project.get("name", path.parent.name),
         "version": project.get("version", "0.0.0"),
-        "author": ", ".join(project.get("authors", [{"name": "Unknown"}])[0]["name"]),
+        "author": (project.get("authors", [{}])[0].get("name", "Unknown")),
         "license": project.get("license", {}).get("text", "Proprietary"),
         "dependencies": project.get("dependencies", []),
         "python_requires": project.get("requires-python", ">=3.6")
@@ -175,16 +176,27 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
     return f"{package_root.name}." + ".".join(rel_path.with_suffix("").parts)
 
 def _find_imports(node: ast.AST) -> list:
-    """Extract imported modules from AST"""
     imports = []
-    for child in ast.walk(node):
-        if isinstance(child, ast.Import):
-            for alias in child.names:
-                imports.append(alias.name)
-        elif isinstance(child, ast.ImportFrom):
-            module = child.module or ""
-            imports.append(module)
-    return list(set(imports))
+    for n in ast.walk(node):
+        if isinstance(n, ast.Import):
+            imports.extend(alias.name for alias in n.names)
+        elif isinstance(n, ast.ImportFrom):
+            # Handle relative imports with proper dot calculation
+            module = n.module or ""
+            prefix = "." * (n.level - 1) if n.level > 0 else ""
+            
+            if prefix and module:
+                full_path = f"{prefix}{module}"
+            elif prefix:
+                full_path = prefix.rstrip('.')  # Handle parent package imports
+            else:
+                full_path = module
+                
+            imports.extend(
+                f"{full_path}.{name.name}" if full_path else name.name
+                for name in n.names
+            )
+    return [imp.strip('.') for imp in imports if imp]
 
 def extract_type_info(node: ast.AST) -> Dict[str, Any]:
     """Enhanced type hint parsing with qualified names"""
@@ -278,4 +290,9 @@ def _get_annotation(node: ast.AST) -> str:
         right = _get_annotation(node.right)
         return f"{left} | {right}"  # Handle Union types
     else:
-        return str(node) 
+        return str(node)
+
+def _get_package_name(path: Path) -> str:
+    """Extract package name from filename"""
+    match = re.search(r"([a-zA-Z0-9_\-]+)-\d+\.\d+\.\d+", path.name)
+    return match.group(1) if match else path.stem 

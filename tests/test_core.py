@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from src.chewdoc.core import analyze_package, parse_pyproject, extract_docstrings, extract_type_info, download_pypi_package, _get_module_name
+from src.chewdoc.core import analyze_package, parse_pyproject, extract_docstrings, extract_type_info, download_pypi_package, _get_module_name, get_local_metadata, get_package_path, _get_package_name, _find_imports
 import ast
 import subprocess
 from unittest.mock import patch
@@ -137,3 +137,61 @@ def test_module_name_generation(tmp_path):
     init_file = pkg_root / "__init__.py"
     init_file.touch()
     assert _get_module_name(init_file, pkg_root) == "testpkg" 
+
+def test_local_metadata_fallback(tmp_path):
+    pkg_dir = tmp_path / "testpkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "setup.py").touch()
+    
+    metadata = get_local_metadata(pkg_dir)
+    assert metadata["name"] == "testpkg"
+
+def test_missing_pypi_package():
+    with pytest.raises(ValueError):
+        get_package_path("nonexistent-pkg-123", is_local=False)
+
+def test_docstring_extraction_error():
+    bad_node = ast.parse("def test():\n    pass")
+    bad_node.body[0].body = [ast.Expr(value=ast.Constant(value=123))]  # Invalid docstring node
+    assert extract_docstrings(bad_node) == {}
+
+def test_package_extraction_logic(tmp_path):
+    test_file = tmp_path / "test-1.0.0.tar.gz"
+    test_file.touch()
+    assert _get_package_name(test_file) == "test" 
+
+def test_pyproject_fallback(tmp_path):
+    pkg_dir = tmp_path / "legacypkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "setup.py").write_text("from setuptools import setup\nsetup(name='legacy')")
+    
+    metadata = get_local_metadata(pkg_dir)
+    assert metadata["name"] == "legacy"
+    assert metadata["version"] == "0.0.0" 
+
+def test_minimal_metadata(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[tool.poetry]\nname = 'poetrypkg'")
+    
+    metadata = parse_pyproject(pyproject)
+    assert metadata["name"] == "poetrypkg"
+    assert metadata["author"] == "Unknown" 
+
+def test_import_discovery():
+    code = '''
+import os
+from pathlib import Path as P
+import chewdoc.core
+from . import submodule
+'''
+    node = ast.parse(code)
+    imports = _find_imports(node)
+    assert "os" in imports
+    assert "chewdoc.core" in imports
+    assert "submodule" in imports
+
+def test_installed_package_path():
+    with patch('importlib.metadata.distribution') as mock_dist:
+        mock_dist.return_value.locate_file.return_value = "/fake/path"
+        path = get_package_path("requests", False)
+        assert str(path) == "/fake/path" 

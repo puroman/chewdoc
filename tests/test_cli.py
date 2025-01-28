@@ -51,3 +51,18 @@ def test_cli_version_handling(tmp_path):
             version='2.28.1',
             is_local=False
         ) 
+
+def test_cli_module_command(tmp_path):
+    runner = CliRunner()
+    with patch('src.chewdoc.cli.analyze_package') as mock_analyze:
+        mock_analyze.return_value = {"name": "testmod"}
+        output_path = tmp_path / "mod.md"
+        
+        result = runner.invoke(cli, [
+            'module',
+            'testmod.py',
+            '--output', str(output_path)
+        ])
+        
+        assert result.exit_code == 0
+        assert "Analyzing module" in result.output 

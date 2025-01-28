@@ -43,7 +43,7 @@ def _format_modules(modules: list) -> str:
             dependencies="\n".join([f"- {imp}" for imp in module.get("imports", [])])
         ))
         sections.append(_format_type_info(module["types"]))
-        sections.append(f"\n**Source**: `{module['path']}`\n")
+        sections.append(f"\n**Source**: `{module.get('path', 'unknown path')}`\n")
         sections.append(_format_relationships(module))
     return "\n".join(sections)
 
@@ -51,12 +51,13 @@ def _format_type_info(type_info: Dict[str, Any]) -> str:
     """Add cross-references section"""
     sections = []
     
-    if type_info["cross_references"]:
+    # Handle cross references safely
+    if type_info.get("cross_references"):
         sections.append("\n### Type References\n")
         sections.extend(f"- [[{t}]]" for t in sorted(type_info["cross_references"]))
     
-    # Format functions
-    for func, details in type_info["functions"].items():
+    # Format functions if present
+    for func, details in type_info.get("functions", {}).items():
         sections.append(API_REF_TEMPLATE.format(
             name=func,
             signature=_format_function_signature(details),
@@ -64,12 +65,11 @@ def _format_type_info(type_info: Dict[str, Any]) -> str:
         ))
     
     # Format classes only if they exist
-    if type_info["classes"]:
-        for cls, details in type_info["classes"].items():
-            sections.append(f":::{cls}")
-            for attr, type_hint in details["attributes"].items():
-                sections.append(f"- {attr}: {type_hint}")
-            sections.append(":::")
+    for cls, details in type_info.get("classes", {}).items():
+        sections.append(f":::{cls}")
+        for attr, type_hint in details.get("attributes", {}).items():
+            sections.append(f"- {attr}: {type_hint}")
+        sections.append(":::")
     
     return "\n".join(sections)
 
