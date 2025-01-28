@@ -1,5 +1,6 @@
 import click
 from chewdoc.core import analyze_package, generate_docs
+from pathlib import Path
 
 
 @click.group(invoke_without_command=True)
@@ -20,7 +21,7 @@ def cli(ctx):
 def package(source, version, local, output):
     """Analyze a Python package"""
     package_info = analyze_package(source=source, version=version, is_local=local)
-    generate_docs(package_info, output)
+    generate_docs(package_info, Path(output))
 
 
 @cli.command()

@@ -159,18 +159,13 @@ def get_pypi_metadata(name: str, version: Optional[str]) -> Dict[str, Any]:
 
 
 def get_package_path(source: str, is_local: bool) -> Path:
-    """Get root path for package sources"""
+    """Get package path from source string"""
     if is_local:
-        path = Path(source).resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"Package path not found: {source}")
-        return path
-
-    try:
-        dist = importlib.metadata.distribution(source)
-        return Path(dist.locate_file(""))
-    except importlib.metadata.PackageNotFoundError:
-        raise ValueError(f"Package {source} not installed")
+        # Ensure source is converted to Path object
+        return Path(source).resolve()
+    else:
+        # Handle PyPI package paths
+        return Path(importlib.metadata.distribution(source).location)
 
 
 def parse_pyproject(path: Path) -> dict:
@@ -291,38 +286,25 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
 def _find_imports(node: ast.AST) -> list:
     """Collect imports with their source and type context"""
     imports = []
-    seen = set()
-
     for n in ast.walk(node):
         if isinstance(n, ast.Import):
             for alias in n.names:
-                key = (alias.name, None, "module")
-                if key not in seen:
-                    seen.add(key)
-                    imports.append(
-                        {
-                            "name": alias.name.split(".")[0],
-                            "full_path": alias.name,
-                            "source": None,
-                            "type": "module",
-                        }
-                    )
+                imports.append({
+                    "name": alias.name,
+                    "source": None,
+                    "full_path": alias.name,
+                    "type": "module"
+                })
         elif isinstance(n, ast.ImportFrom):
-            module = n.module or ""
+            module = n.module.split('.') if n.module else []
             for alias in n.names:
-                key = (alias.name, module, "object")
-                if key not in seen:
-                    seen.add(key)
-                    imports.append(
-                        {
-                            "name": alias.name,
-                            "full_path": (
-                                f"{module}.{alias.name}" if module else alias.name
-                            ),
-                            "source": module,
-                            "type": "object",
-                        }
-                    )
+                full_path = f"{'.'.join(module)}.{alias.name}" if module else alias.name
+                imports.append({
+                    "name": alias.name,
+                    "source": n.module,
+                    "full_path": full_path,
+                    "type": "module"
+                })
     return imports
 
 
@@ -513,23 +495,17 @@ def _find_usage_examples(node: ast.AST) -> list:
     examples = []
     for n in ast.walk(node):
         if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant):
-            if "Example:" in (docstring := n.value.value):
-                examples.append(
-                    {
-                        "type": "doctest",
-                        "content": "\n".join(
-                            line.strip() for line in docstring.split("\n")
-                        ),
-                        "line": n.lineno,
-                    }
-                )
+            if isinstance(n.value.value, str) and "Example:" in (docstring := n.value.value):
+                examples.append({
+                    "type": "doctest",
+                    "content": "\n".join(line.strip() for line in docstring.split("\n")),
+                    "line": n.lineno
+                })
         elif isinstance(n, ast.FunctionDef) and n.name.startswith("test_"):
-            examples.append(
-                {
-                    "type": "pytest",
-                    "name": n.name,
-                    "line": n.lineno,
-                    "body": ast.unparse(n),
-                }
-            )
+            examples.append({
+                "type": "pytest",
+                "name": n.name,
+                "line": n.lineno,
+                "body": ast.unparse(n)
+            })
     return examples

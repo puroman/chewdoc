@@ -11,7 +11,14 @@ class ChewdocConfig(BaseModel):
     """Main configuration model for chewdoc"""
 
     exclude_patterns: List[str] = Field(
-        default_factory=lambda: ["__pycache__", "*.tests", "test_*"],
+        default_factory=lambda: [
+            "__pycache__",
+            "*.tests",
+            "test_*",
+            ".venv*",  # Virtual environments
+            "venv*",
+            "env*"
+        ],
         description="File patterns to exclude from processing",
     )
     known_types: Dict[str, str] = Field(
