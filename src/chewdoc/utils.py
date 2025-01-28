@@ -1,5 +1,6 @@
 import ast
 from chewdoc.config import ChewdocConfig
+from typing import Any
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
@@ -80,9 +81,18 @@ def validate_ast(node: ast.AST) -> None:
         raise ValueError("Invalid AST structure - missing body attribute")
     
     # Check for minimum required elements
-    if not any(isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Assign)) 
-              for stmt in node.body):
-        raise ValueError("Empty or invalid module AST structure")
+    has_elements = any(
+        isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Assign)) 
+        for stmt in node.body
+    )
+    if not has_elements:
+        # Allow modules with only docstrings
+        has_docstring = any(
+            isinstance(stmt, ast.Expr) and isinstance(stmt.value, (ast.Str, ast.Constant))
+            for stmt in node.body
+        )
+        if not has_docstring:
+            raise ValueError("Empty or invalid module AST structure")
 
 
 def find_usage_examples(node: ast.AST) -> list:
