@@ -2,9 +2,9 @@ VENV = .venv
 PYTHON = $(VENV)/bin/python
 UV = $(VENV)/bin/uv
 
-.PHONY: venv test clean docs lint format
+.PHONY: venv test clean clear docs lint format
 
-venv:
+venv venv-reset:
 	@echo "Creating virtual environment..."
 	rm -rf $(VENV)
 	python3 -m venv $(VENV)
@@ -16,13 +16,13 @@ venv:
 test: venv
 	$(PYTHON) -m pytest -v --cov=src --cov-report=term-missing tests/
 
-docs: venv
+doc docs: venv
 	@echo "Generating project documentation..."
 	mkdir -p docs
-	time $(PYTHON) -m chewdoc package . --local --output docs/chewdoc.myst --verbose
+	time $(PYTHON) -m chewdoc chew . --local --output docs/ --verbose
 
-clean:
-	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs
+clean clear:
+	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs $(shell find . -name '__pycache__' -type d)
 
 lint: venv
 	$(PYTHON) -m flake8 src tests

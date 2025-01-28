@@ -32,9 +32,9 @@ def infer_responsibilities(module: dict) -> str:
     def safe_get_names(items, key="name") -> list:
         """Safely extract names from mixed list/dict structures"""
         if isinstance(items, dict):
-            return [v.get(key, "") for v in items.values()]
+            return [v.get(key, "") for v in items.values() if v.get(key)]
         if isinstance(items, list):
-            return [item.get(key, "") for item in items]
+            return [item.get(key, "") for item in items if item.get(key)]
         return []
 
     responsibilities = []

@@ -68,27 +68,24 @@ def analyze_package(
 
         package_info["modules"] = []
         processed = 0
-        total_modules = len(process_modules(package_path, config))
-        for module in process_modules(package_path, config):
+        module_paths = process_modules(package_path, config)  # Get paths first
+        total_modules = len(module_paths)
+        
+        for module_data in module_paths:
             processed += 1
+            module_name = module_data["name"]
             if verbose:
-                click.echo(f"🔄 Processing AST ({processed}/{total_modules}): {module['name']}")
-            module.update(
-                {
-                    "docstrings": extract_docstrings(module["ast"]),
-                    "type_info": extract_type_info(module["ast"], config),
-                    "imports": _find_imports(module["ast"], package_name),
-                    "constants": _find_constants(module["ast"], config),
-                    "examples": _find_usage_examples(module["ast"]),
-                    "internal_deps": [
-                        imp["full_path"]
-                        for imp in module["imports"]
-                        if imp["type"] == "internal"
-                    ],
-                    "package": package_name,
-                }
-            )
-            package_info["modules"].append(module)
+                click.echo(f"🔄 Processing ({processed}/{total_modules}): {module_name}")
+            
+            module_info = {
+                "name": module_name,
+                "path": module_data["path"],
+                "ast": module_data["ast"],  # Use pre-parsed AST
+                "docstrings": extract_docstrings(module_data["ast"]),
+                "types": extract_type_info(module_data["ast"], config),
+                "examples": find_usage_examples(module_data["ast"])
+            }
+            package_info["modules"].append(module_info)
 
         relationships = _analyze_relationships(package_info["modules"], package_name)
         package_info["relationships"] = relationships
@@ -97,6 +94,20 @@ def analyze_package(
             duration = datetime.now() - start_time
             click.echo(f"🏁 Analysis completed in {duration.total_seconds():.3f}s")
             click.echo(f"📊 Processed {len(package_info['modules'])} modules")
+
+        for file_path in package_path.rglob("*.py"):
+            if verbose:
+                click.echo(f"\n[DEBUG] Parsing {file_path.relative_to(package_path)}")
+            
+            module_data = _analyze_module(file_path, package_path, config)
+            
+            if verbose:
+                click.echo(f"  Found {len(module_data.get('constants', {}))} constants")
+                click.echo(f"  Found {len(module_data.get('functions', {}))} functions")
+                click.echo(f"  Found {len(module_data.get('classes', {}))} classes")
+                click.echo(f"  Dependencies: {module_data.get('internal_deps', [])[:3]}...")
+                if module_data.get('examples'):
+                    click.echo(f"  Examples: {len(module_data['examples'])} found")
 
         return package_info
     except Exception as e:
@@ -500,17 +511,19 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
             for target in n.targets:
                 if isinstance(target, ast.Name):
                     constants[target.id] = {
+                        "name": target.id,
                         "value": ast.unparse(n.value),
                         "type": (
                             get_annotation(n.annotation, config)
                             if getattr(n, "annotation", None)
-                            else None
+                            else _infer_type_from_value(ast.unparse(n.value))
                         ),
                         "line": n.lineno,
                     }
         elif isinstance(n, ast.AnnAssign):
             if isinstance(n.target, ast.Name):
                 constants[n.target.id] = {
+                    "name": n.target.id,
                     "value": ast.unparse(n.value) if n.value else None,
                     "type": get_annotation(n.annotation, config),
                     "line": n.lineno,
@@ -519,31 +532,31 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
 
 
 def _find_usage_examples(node: ast.AST) -> list:
-    """Extract usage examples from docstrings and tests"""
+    """Extract usage examples with better detection"""
     examples = []
+    
     for n in ast.walk(node):
+        # Detect doctest-style examples
         if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant):
-            if isinstance(n.value.value, str) and "Example:" in (
-                docstring := n.value.value
+            if isinstance(n.value.value, str) and any(
+                trigger in n.value.value 
+                for trigger in ("Example:", "Usage:", ">>>")
             ):
-                examples.append(
-                    {
-                        "type": "doctest",
-                        "content": "\n".join(
-                            line.strip() for line in docstring.split("\n")
-                        ),
-                        "line": n.lineno,
-                    }
-                )
-        elif isinstance(n, ast.FunctionDef) and n.name.startswith("test_"):
-            examples.append(
-                {
-                    "type": "pytest",
-                    "name": n.name,
-                    "line": n.lineno,
-                    "body": ast.unparse(n),
-                }
-            )
+                examples.append({
+                    "type": "doctest",
+                    "content": n.value.value,
+                    "line": n.lineno
+                })
+        
+        # Detect test functions
+        if isinstance(n, ast.FunctionDef) and n.name.lower().startswith("test"):
+            examples.append({
+                "type": "pytest",
+                "name": n.name,
+                "line": n.lineno,
+                "body": ast.unparse(n)
+            })
+    
     return examples
 
 

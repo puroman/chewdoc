@@ -6,6 +6,7 @@ from chewdoc.config import ChewdocConfig
 
 import ast
 import click
+import fnmatch
 
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
 
@@ -49,6 +50,16 @@ class MystWriter:
             click.echo(f"✅ Documentation generated in {duration.total_seconds():.3f}s")
             click.echo(f"📑 Created {len(package_data.get('modules', []))} module files")
             click.echo(f"📂 Output location: {output_dir.resolve()}")
+
+        # Add debug output
+        if verbose:
+            click.echo("\n[DEBUG] Final package data structure:")
+            click.echo(f"Modules: {len(package_data.get('modules', []))}")
+            for mod in package_data.get("modules", [])[:3]:
+                click.echo(f"\nModule: {mod['name']}")
+                click.echo(f"Constants: {list(mod.get('constants', {}).keys())[:3]}...")
+                click.echo(f"Dependencies: {mod.get('internal_deps', [])[:3]}...")
+                click.echo(f"Examples: {len(mod.get('examples', []))}")
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
@@ -189,18 +200,25 @@ class MystWriter:
             return f"- **Architecture Layer**: {module['layer']}"
         return "- **Architecture Layer**: Not specified"
 
-    def _format_dependencies(self, deps: list) -> str:
-        """Format internal dependencies as Mermaid graph"""
-        if not deps:
+    def _format_dependencies(self, dependencies: list) -> str:
+        """Format module dependencies as Mermaid graph"""
+        if not dependencies:
             return "No internal dependencies"
         
-        nodes = []
-        links = []
-        for i, dep in enumerate(sorted(deps)):
-            nodes.append(f"    N{i}[{dep}]")
-            links.append(f"    N{i} -->|uses| {dep.replace('.', '_')}")
+        connections = []
+        seen = set()
         
-        return "graph TD\n" + "\n".join(nodes + links)
+        for dep in dependencies:
+            clean_dep = self._clean_node_name(dep)
+            if clean_dep not in seen:
+                connections.append(f"{clean_dep}[{dep}]")
+                seen.add(clean_dep)
+        
+        return "\n    ".join(connections[:10])  # Show first 10 deps
+
+    def _clean_node_name(self, name: str) -> str:
+        """Sanitize node names for Mermaid compatibility"""
+        return name.replace(".", "_").replace("-", "_")
 
     def _format_modules(self, modules: list) -> str:
         """Format module list for index page"""
@@ -245,3 +263,21 @@ class MystWriter:
             )
         
         return "\n\n".join(formatted)
+
+    def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
+        """Enhanced docstring extraction with context tracking"""
+        docs = {}
+        for child in ast.walk(node):
+            if isinstance(child, (ast.Module, ast.ClassDef, ast.FunctionDef)):
+                try:
+                    docstring = ast.get_docstring(child, clean=True)
+                    if docstring:
+                        key = f"{type(child).__name__}:{getattr(child, 'name', 'module')}"
+                        docs[key] = {
+                            "doc": docstring,
+                            "line": child.lineno,
+                            "context": self._get_code_context(child),
+                        }
+                except Exception as e:
+                    continue
+        return docs

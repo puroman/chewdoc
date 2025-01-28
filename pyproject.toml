@@ -31,3 +31,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["chewdoc*"]
+
+[project.scripts]
+chewdoc = "chewdoc.cli:cli"
