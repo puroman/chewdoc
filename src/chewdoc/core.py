@@ -47,7 +47,7 @@ def analyze_package(
     """
     start_time = datetime.now()
     if verbose:
-        click.echo(f"🚀 Starting analysis at {start_time:%H:%M:%S}")
+        click.echo(f"🚀 Starting analysis at {start_time:%H:%M:%S.%f}"[:-3])
         click.echo(f"📦 Package source: {source}")
 
     config = config or load_config()
@@ -61,11 +61,18 @@ def analyze_package(
         package_name = _get_package_name(package_path)
 
         if verbose:
+            clean_name = package_name.split(".src.")[-1]
+            click.echo(f"📦 Processing package: {clean_name}")
             click.echo(f"📂 Found {len(package_info.get('modules', []))} modules")
             click.echo("🧠 Processing module ASTs...")
 
         package_info["modules"] = []
+        processed = 0
+        total_modules = len(process_modules(package_path, config))
         for module in process_modules(package_path, config):
+            processed += 1
+            if verbose:
+                click.echo(f"🔄 Processing AST ({processed}/{total_modules}): {module['name']}")
             module.update(
                 {
                     "docstrings": extract_docstrings(module["ast"]),
@@ -86,9 +93,14 @@ def analyze_package(
         relationships = _analyze_relationships(package_info["modules"], package_name)
         package_info["relationships"] = relationships
 
+        if verbose:
+            duration = datetime.now() - start_time
+            click.echo(f"🏁 Analysis completed in {duration.total_seconds():.3f}s")
+            click.echo(f"📊 Processed {len(package_info['modules'])} modules")
+
         return package_info
     except Exception as e:
-        metadata["version"] = "0.0.0"
+        importlib.metadata.metadata["version"] = "0.0.0"
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 
@@ -312,6 +324,7 @@ def generate_docs(
     package_info: Dict[str, Any],
     output_path: Path,
     config: Optional[ChewdocConfig] = None,
+    verbose: bool = False
 ) -> None:
     """Generate MyST documentation from package analysis data.
 
@@ -325,6 +338,7 @@ def generate_docs(
         package_info: Package analysis data from analyze_package()
         output_path: Directory to write documentation files
         config: Optional configuration object
+        verbose: Whether to show detailed progress
 
     Example:
         ```python
@@ -338,18 +352,14 @@ def generate_docs(
         output_path,
         template_dir=config.template_dir,
         enable_cross_refs=config.enable_cross_references,
+        verbose=verbose
     )
 
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
-    """Get full module name from file path (internal)"""
-    rel_path = file_path.relative_to(package_root)
-
-    if rel_path.name == "__init__.py":
-        if rel_path.parent == Path("."):  # Handle root package
-            return package_root.name
-        return f"{package_root.name}." + ".".join(rel_path.parent.parts)
-    return f"{package_root.name}." + ".".join(rel_path.with_suffix("").parts)
+    """Get clean module name from file path"""
+    relative_path = file_path.relative_to(package_root)
+    return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
 
 
 def _find_imports(node: ast.AST, package_name: str) -> list:

@@ -27,16 +27,20 @@ def generate_myst(
         raise ValueError("No package data provided")
 
     # Create output directory structure
-    package_name = package_info.get("name", "unnamed_package")
+    package_name = package_info.get("name", "unnamed_package").split(".")[-1]
     output_dir = output_path / f"{package_name}_docs"
     output_dir.mkdir(parents=True, exist_ok=True)
+    main_output = output_dir / "index.myst"
 
     # Generate main package index
-    (output_dir / "index.myst").write_text(_format_package_index(package_info))
+    main_output.write_text(_format_package_index(package_info))
 
     # Generate module files
-    for module in package_info.get("modules", []):
-        module_name = module["name"].replace(".", "_")
+    module_count = len(package_info.get("modules", []))
+    for idx, module in enumerate(package_info.get("modules", []), 1):
+        if verbose:
+            click.echo(f"📝 Processing module {idx}/{module_count}: {module['name']}")
+        module_name = module["name"].split(".src.")[-1].replace(".", "_")
         module_path = output_dir / f"{module_name}.myst"
         module_path.write_text(_format_module_content(module))
 
@@ -53,6 +57,12 @@ def generate_myst(
     else:
         # Skip cross reference generation
         pass
+
+    if verbose:
+        duration = datetime.now() - start_time
+        click.echo(f"✅ Documentation generated in {duration.total_seconds():.3f}s")
+        click.echo(f"📑 Created {len(package_info.get('modules', []))} module files")
+        click.echo(f"📂 Output location: {output_dir.resolve()}")
 
 
 def _format_package_index(package_data: Dict[str, Any]) -> str:
