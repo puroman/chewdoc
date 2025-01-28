@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import shutil
 from collections import defaultdict
+from datetime import datetime
+import click
 
 try:
     import tomli
@@ -24,6 +26,7 @@ def analyze_package(
     is_local: bool = True,
     version: Optional[str] = None,
     config: Optional[ChewdocConfig] = None,
+    verbose: bool = False
 ) -> Dict[str, Any]:
     """Analyze a Python package and extract documentation information.
 
@@ -32,6 +35,7 @@ def analyze_package(
         version: Optional version for PyPI packages
         is_local: Whether source is a local path
         config: Optional configuration object
+        verbose: Whether to show detailed progress
 
     Returns:
         Dict containing package metadata, modules, and documentation
@@ -41,13 +45,24 @@ def analyze_package(
         ValueError: If PyPI package not found
         FileNotFoundError: If local package path invalid
     """
+    start_time = datetime.now()
+    if verbose:
+        click.echo(f"🚀 Starting analysis at {start_time:%H:%M:%S}")
+        click.echo(f"📦 Package source: {source}")
+
     config = config or load_config()
     try:
+        if verbose:
+            click.echo("🔍 Fetching package metadata...")
         package_info = get_package_metadata(source, version, is_local)
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
         package_path = get_package_path(Path(source), is_local)
         package_name = _get_package_name(package_path)
+
+        if verbose:
+            click.echo(f"📂 Found {len(package_info.get('modules', []))} modules")
+            click.echo("🧠 Processing module ASTs...")
 
         package_info["modules"] = []
         for module in process_modules(package_path, config):
@@ -72,7 +87,7 @@ def analyze_package(
         package_info["relationships"] = relationships
 
         return package_info
-    except Exception:
+    except Exception as e:
         metadata["version"] = "0.0.0"
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 

@@ -15,14 +15,15 @@ def cli(ctx):
 @click.argument("source")
 @click.option("--version", help="Specify package version")
 @click.option("--local", is_flag=True, help="Analyze local package")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed progress")
 @click.option(
     "--output", type=click.Path(), default="docs.myst", help="Output file path"
 )
-def package(source, version, local, output):
+def package(source, version, local, output, verbose):
     """Analyze a Python package"""
     package_info = analyze_package(
-        source=source, version=version, is_local=local)
-    generate_docs(package_info, Path(output))
+        source=source, version=version, is_local=local, verbose=verbose)
+    generate_docs(package_info, Path(output), verbose=verbose)
 
 
 @cli.command()

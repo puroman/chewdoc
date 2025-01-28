@@ -5,6 +5,7 @@ from chewdoc.utils import get_annotation, infer_responsibilities
 from chewdoc.config import ChewdocConfig
 
 import ast
+import click
 
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
 
@@ -14,8 +15,14 @@ def generate_myst(
     output_path: Path,
     template_dir: Optional[Path] = None,
     enable_cross_refs: bool = True,
+    verbose: bool = False
 ) -> None:
     """Generate structured MyST documentation with separate files"""
+    start_time = datetime.now()
+    if verbose:
+        click.echo(f"📄 Starting MyST generation at {start_time:%H:%M:%S}")
+        click.echo(f"📂 Output directory: {output_path}")
+
     if not package_info:
         raise ValueError("No package data provided")
 

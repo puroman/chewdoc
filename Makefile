@@ -19,7 +19,7 @@ test: venv
 docs: venv
 	@echo "Generating project documentation..."
 	mkdir -p docs
-	$(PYTHON) -m chewdoc package . --local --output docs/chewdoc.myst
+	time $(PYTHON) -m chewdoc package . --local --output docs/chewdoc.myst --verbose
 
 clean:
 	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs
