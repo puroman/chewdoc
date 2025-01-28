@@ -5,14 +5,31 @@ import importlib.metadata
 import subprocess
 import tempfile
 import shutil
-import tomli
+try:
+    import tomli
+except ImportError:
+    import tomllib as tomli  # Python 3.11+
 from chewdoc.formatters.myst_writer import generate_myst
 import re
 from chewdoc.constants import KNOWN_TYPES, EXCLUDE_PATTERNS
 import fnmatch
 
 def analyze_package(source: str, version: str = None, is_local: bool = False) -> Dict[str, Any]:
-    """Enhanced package analysis with new metadata"""
+    """Analyze a Python package and extract documentation information.
+    
+    Args:
+        source: Package name (PyPI) or path (local)
+        version: Optional version for PyPI packages
+        is_local: Whether source is a local path
+        
+    Returns:
+        Dict containing package metadata, modules, and documentation
+        
+    Raises:
+        RuntimeError: If package analysis fails
+        ValueError: If PyPI package not found
+        FileNotFoundError: If local package path invalid
+    """
     try:
         package_info = get_package_metadata(source, version, is_local)
         package_root = get_package_path(source, is_local)
@@ -33,7 +50,21 @@ def analyze_package(source: str, version: str = None, is_local: bool = False) ->
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 def process_modules(package_path: Path) -> list:
-    """Process modules without tracking external dependencies"""
+    """Process Python modules in a package directory.
+    
+    Recursively discovers and analyzes Python modules in the package,
+    excluding files matching EXCLUDE_PATTERNS.
+    
+    Args:
+        package_path: Root directory of the package
+        
+    Returns:
+        List of module data dictionaries containing:
+        - name: Full module name
+        - path: Module file path
+        - ast: Parsed AST
+        - internal_deps: List of internal dependencies
+    """
     modules = []
     for file_path in package_path.rglob("*.py"):
         # Skip files matching exclusion patterns
@@ -185,7 +216,24 @@ def download_pypi_package(name: str, version: str = None) -> Path:
         return extract_dir / downloaded[0].stem.split("-")[0]
 
 def generate_docs(package_info: Dict[str, Any], output_path: str) -> None:
-    """Generate documentation from analyzed package data"""
+    """Generate MyST documentation from package analysis data.
+    
+    Creates a documentation directory structure with:
+    - Module documentation files
+    - API reference
+    - Cross-references
+    - Usage examples
+    
+    Args:
+        package_info: Package analysis data from analyze_package()
+        output_path: Directory to write documentation files
+        
+    Example:
+        ```python
+        info = analyze_package("mypackage", is_local=True)
+        generate_docs(info, "docs/mypackage")
+        ```
+    """
     generate_myst(package_info, Path(output_path))
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
@@ -230,7 +278,24 @@ def _find_imports(node: ast.AST) -> list:
     return imports
 
 def extract_type_info(node: ast.AST) -> Dict[str, Any]:
-    """Enhanced type hint parsing with qualified names"""
+    """Extract type hints and relationships from AST.
+    
+    Analyzes Python code to collect:
+    - Class hierarchies and methods
+    - Function signatures
+    - Variable type annotations
+    - Cross-references between types
+    
+    Args:
+        node: AST node to analyze (usually module)
+        
+    Returns:
+        Dictionary containing:
+        - cross_references: Set of referenced type names
+        - functions: Dict of function signatures
+        - classes: Dict of class information
+        - variables: Dict of typed variables
+    """
     type_info = {
         "cross_references": set(),
         "functions": {},
@@ -242,7 +307,19 @@ def extract_type_info(node: ast.AST) -> Dict[str, Any]:
     class_stack = []
     
     class TypeVisitor(ast.NodeVisitor):
+        """AST visitor for extracting type information from Python code.
+        
+        This visitor traverses the AST to collect:
+        - Class definitions and their methods
+        - Function signatures and return types
+        - Variable type annotations
+        
+        The collected information is stored in the type_info dictionary
+        passed to extract_type_info().
+        """
+        
         def visit_ClassDef(self, node):
+            """Process class definition and collect method information."""
             # Generate fully qualified class name
             if class_stack:
                 full_name = f"{class_stack[-1]}.{node.name}"
@@ -317,7 +394,26 @@ def _get_package_name(path: Path) -> str:
     return match.group(1) if match else path.stem
 
 def find_python_packages(path: Path) -> dict:
-    """Discover Python packages in a given directory path."""
+    """Discover Python packages in a directory tree.
+    
+    Recursively searches for Python packages (directories with __init__.py)
+    while respecting exclusion patterns.
+    
+    Args:
+        path: Root directory to search
+        
+    Returns:
+        Dict mapping package names to:
+        - path: Package directory
+        - modules: Nested package dict
+        
+    Example:
+        ```python
+        packages = find_python_packages(Path("src"))
+        for name, info in packages.items():
+            print(f"Found package {name} at {info['path']}")
+        ```
+    """
     packages = {}
     
     for entry in path.iterdir():

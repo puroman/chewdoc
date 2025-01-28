@@ -249,13 +249,44 @@ def _format_module_metadata(module: Dict[str, Any]) -> str:
     except (KeyError, FileNotFoundError, OSError):
         last_updated = "Unknown date"
     
+    # Prepare optional sections
+    role_section = f"- **Role**: {module.get('role', 'Unspecified')}" if module.get('role') else ""
+    layer_section = f"- **Layer**: {module.get('layer', 'Unspecified')}" if module.get('layer') else ""
+    
+    # Format dependencies
+    dependencies = []
+    for imp in module.get('imports', []):
+        if isinstance(imp, dict):
+            name = imp.get('name', '')
+            source = imp.get('source', '')
+            if source:
+                dependencies.append(f"{name} -> {source}")
+            else:
+                dependencies.append(name)
+        else:
+            dependencies.append(str(imp))
+    deps_str = "\n    ".join(dependencies) if dependencies else "No dependencies"
+    
+    # Format usage examples
+    examples = []
+    for ex in module.get('examples', []):
+        if isinstance(ex, dict):
+            if ex.get('type') == 'doctest':
+                examples.append(ex.get('content', ''))
+            elif ex.get('type') == 'pytest':
+                examples.append(ex.get('body', ''))
+        else:
+            examples.append(str(ex))
+    examples_str = "\n\n".join(examples) if examples else "No examples available"
+    
     return MODULE_TEMPLATE.format(
         name=module['name'],
-        path=module['path'],
         package=module.get('package', 'unknown'),
         description=module.get('docstrings', {}).get('Module:module', {}).get('doc', 'No description'),
-        coverage="N/A",
-        last_updated=last_updated
+        role_section=role_section,
+        layer_section=layer_section,
+        dependencies=deps_str,
+        usage_examples=examples_str
     )
 
 def _format_constants(constants: Dict[str, Any]) -> str:
