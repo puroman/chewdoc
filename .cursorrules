@@ -16,7 +16,11 @@
                 "Use pytest fixtures for package mocking",
                 "Test both local and PyPI package paths",
                 "Verify MyST output structure",
-                "Check error handling for invalid packages"
+                "Check error handling for invalid packages",
+                "Validate package name extraction logic",
+                "Test versioned directory patterns",
+                "Verify MystWriter error handling",
+                "Check example validation edge cases"
             ]
         },
         {

@@ -231,11 +231,13 @@ class MystWriter:
     def _format_usage_examples(self, examples: list) -> str:
         output = []
         for ex in examples:
-            if isinstance(ex, dict):
+            if isinstance(ex, dict) and ('code' in ex or 'content' in ex):
                 code = ex.get('code', ex.get('content', ''))
                 output.append(f"```python\n{code}\n```")
             elif isinstance(ex, str):
                 output.append(f"```python\n{ex}\n```")
+            else:
+                logger.warning(f"Skipping invalid example type: {type(ex).__name__}")
         return "\n\n".join(output)
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
