@@ -79,29 +79,24 @@ class MystWriter:
 
     def _format_module_content(self, module: dict) -> str:
         """Format module docs with package context"""
-        module = module.copy()
-        module.setdefault("type_info", {})
-        module.setdefault("examples", [])
-        module.setdefault("docstrings", {})
-        module.setdefault("internal_deps", [])  # Add default for dependencies
+        output = []
         try:
-            return MODULE_TEMPLATE.format(
-                name=module["name"],
-                package=self.package_data["package"],
-                role_section=self._format_role(module),
-                layer_section=self._format_architecture_layer(module),
-                imports_section=self._format_imports(
-                    module.get("imports", []), self.package_data["package"]
-                ),
-                description=self._get_module_description(module),
-                dependencies=self._format_dependencies(module["internal_deps"]),
-                usage_examples=self._format_usage_examples(module.get("examples", [])),
-                api_reference=self._format_api_reference(module.get("type_info", {})),
-            )
-        except ValueError as e:
-            raise ValueError(
-                f"Failed to process module {module['name']}: {str(e)}"
-            ) from e
+            module = module.copy()
+            module.setdefault("type_info", {})
+            module.setdefault("examples", [])
+            module.setdefault("docstrings", {})
+            module.setdefault("internal_deps", [])  # Add default for dependencies
+            if functions := module["type_info"].get("functions"):
+                output.append("\n## Functions")
+                for func_name, func_info in functions.items():
+                    try:
+                        output.append(self._format_function(func_name, func_info))
+                    except Exception as e:
+                        output.append(f"## `{func_name}`\n\n*Error formatting function: {str(e)[:100]}*")
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Failed to process module {module['name']}: {str(e)}")
+            raise
 
     def _format_imports(self, imports: list, package: str) -> str:
         """Categorize imports with full path handling"""
@@ -220,28 +215,35 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with robust type checking"""
-        args = func_info.get("args")
-        returns = func_info.get("returns")
-        
-        if isinstance(args, ast.arguments):
-            return format_function_signature(args, returns, self.config)
-        
-        if isinstance(args, dict):
-            args_list = args.get("args", [])
-            if not isinstance(args_list, list):
-                raise ValueError(f"Invalid args structure: expected list, got {type(args_list).__name__}")
+        """Robust signature formatting with error context"""
+        try:
+            args = func_info.get("args")
+            returns = func_info.get("returns")
+            config = self.config
+
+            if isinstance(args, ast.arguments):
+                return format_function_signature(args, returns, config)
             
-            return format_function_signature(
-                ast.arguments(
-                    args=[ast.arg(arg=arg) for arg in args_list],
-                    defaults=args.get("defaults", []),
-                ),
-                returns,
-                self.config
-            )
+            if isinstance(args, dict):
+                args_list = args.get("args", [])
+                if not isinstance(args_list, list):
+                    return f"()  # Invalid arguments: {str(args)[:50]}"
+                
+                return format_function_signature(
+                    ast.arguments(
+                        args=[ast.arg(arg=str(arg)) for arg in args_list],
+                        defaults=args.get("defaults", []),
+                    ),
+                    returns,
+                    config
+                )
+            
+            return "()  # Unable to parse arguments"
         
-        raise ValueError(f"Unsupported arguments type: {type(args).__name__}")
+        except Exception as e:
+            error_msg = f"Error formatting signature: {str(e)[:100]}"
+            logger.warning(error_msg)
+            return f"()  # {error_msg}"
 
     def _format_usage_examples(self, examples: list) -> str:
         """Format usage examples with proper error handling"""

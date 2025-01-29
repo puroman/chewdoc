@@ -1,145 +1,87 @@
-# ChewDoc :notebook_with_decorative_cover:
+# ChewDoc
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Intelligent documentation generator that creates LLM-optimized documentation with rich type information and usage examples.
+**Code documentation toolkit** for analyzing and generating LLM-friendly, but human-readable and lovable code documentation.
 
-## Features :sparkles:
+## Features
 
-- **AST-based Analysis**: Deep code structure analysis using Python's Abstract Syntax Trees
-- **Multi-format Output**: Generate MyST markdown or basic Markdown documentation
-- **Smart Type Inference**: Automatic type annotation resolution with configurable aliases
-- **Cross-references**: Automatic links between related components
-- **Usage Examples**: Extract and format examples from docstrings and test cases
-- **Configurable**: Control through `pyproject.toml` or programmatic API
-- **Dependency Mapping**: Visualize module relationships with Mermaid diagrams
+- Code structure analysis using Python's AST
+- Configurable documentation generation (MyST/Markdown)
+- Automatic type annotation resolution
+- Cross-component relationship mapping
+- Example extraction from docstrings and tests
+- Flexible configuration via `pyproject.toml`
 
-## Installation :package:```bash
-# Install with UV (recommended)
+```bash
+# Install with pip substitute
 python3 -m pip install uv
 uv pip install git+https://github.com/puroman/chewdoc.git
 
-# For development (editable install)
+# Editable install for contributors
 git clone https://github.com/puroman/chewdoc.git
-cd chewdoc
-uv pip install -e .
+cd chewdoc && uv pip install -e .
 ```
 
-## Quick Start :rocket:
+## Get Started
 
-### CLI Usage
+### Basic Usage
 ```bash
-# Generate docs for local package
-chewdoc chew ./my_package --local --output docs/
+# Analyze local package
+chewdoc chew ./my_module --local --output docs/
 
-# Generate docs for PyPI package
-chewdoc chew requests --version 2.31.0 --output docs/output.myst
+# Generate from PyPI package
+chewdoc chew requests --output docs/api.myst
 ```
 
-### Programmatic API
+### Research Notes
 ```python
 from chewdoc import analyze_package, generate_docs
-from chewdoc.config import load_config
 
-config = load_config()  # Load from pyproject.toml
-package_info = analyze_package("mypackage", config=config)
-generate_docs(
-    package_info,
-    output_format="myst",
-    output_path="docs/",
-    enable_cross_refs=True
-)
+# Experimental analysis pipeline
+results = analyze_package("mypackage")
+generate_docs(results, output_format="myst")
 ```
 
-## Configuration :wrench:
+> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms.
 
-Add a `[tool.chewdoc]` section to your `pyproject.toml`:
+## Configuration
 
+Add to `pyproject.toml`:
 ```toml
 [tool.chewdoc]
-exclude_patterns = ["__pycache__", "*.test"]
-known_types = { "Sequence" = "collections.abc.Sequence" }
 output_format = "myst"
-template_dir = "docs/templates"
-enable_cross_references = true
-max_example_lines = 15
+exclude_patterns = ["tests/*"]
+known_types = { "DataFrame" = "pandas.DataFrame" }
 ```
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `exclude_patterns` | List[str] | [".venv*", "__pycache__", ...] | File patterns to exclude |
-| `known_types` | Dict[str, str] | Common type shortcuts | Simplify complex type annotations |
-| `output_format` | str | "myst" | Documentation format (myst/markdown) |
-| `template_dir` | Path | None | Custom template directory |
-| `enable_cross_references` | bool | True | Generate cross-module links |
-| `max_example_lines` | int | 10 | Max lines in usage examples |
+| Setting | Description |
+|---------|-------------|
+| `output_format` | Documentation format (myst/markdown) |
+| `exclude_patterns` | File patterns to ignore |
+| `known_types` | Type annotation simplifications |
 
-## Project Structure :file_folder:
+## Project Structure
 
 ```
 chewdoc/
 ├── src/
-│   ├── chewdoc/
-│   │   ├── core.py        # Main analysis logic
-│   │   ├── formatters/    # Output generators (MyST/Markdown)
-│   │   ├── utils.py       # Shared utilities
-│   │   ├── config.py      # Configuration handling
-│   │   └── cli.py         # Command line interface
-├── tests/                 # Unit and integration tests
-├── pyproject.toml         # Build configuration
-└── README.md              # This documentation
+│   └── chewdoc/       # Core research implementation
+│       ├── analysis/  # AST processing components
+│       └── formats/   # Output format handlers
+├── tests/             # Experimental validation
+└── pyproject.toml
 ```
 
-## Advanced Usage :microscope:
+## Contributing
 
-### Custom Templates
-Create custom templates in a `templates/` directory:
-```python
-# docs/templates/module.md.j2
-# {{ module.name }}
+We welcome research collaborations! Please see our [contribution guidelines](CONTRIBUTING.md) for:
+- Experimental design principles
+- Benchmarking methodologies
+- Documentation patterns research
 
-{{ module.description }}
+---
 
-{% if module.examples %}
-## Usage Examples
-{% for example in module.examples %}
-```python
-{{ example.code }}
-```
-{% endfor %}
-{% endif %}
-```
-
-### Type Annotation Handling
-Configure complex types in `pyproject.toml`:
-```toml
-[tool.chewdoc.known_types]
-"numpy.ndarray" = "NDArray"
-"pandas.DataFrame" = "DataFrame"
-```
-
-## Running Tests :test_tube:
-
-```bash
-uv pip install -r requirements-test.txt
-pytest tests/ --cov=chewdoc -v
-
-# With coverage report
-pytest tests/ --cov=chewdoc --cov-report=html
-```
-
-## Contributing :handshake:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes with semantic messages
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please follow existing code style and add tests for new features.
-
-## License :scroll:
-
-MIT License - See [LICENSE](LICENSE) for details 
+_MIT Licensed | Part of ongoing research into API documentation systems and agentic workflow automation_
 

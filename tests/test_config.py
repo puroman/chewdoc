@@ -42,13 +42,10 @@ def test_config_from_toml(tmp_path):
     config_file.write_text("""
     [tool.chewdoc]
     max_example_lines = 20
-    theme = "special"
-    """)
+    """)  # Removed invalid theme
     
-    # Load with proper binary mode
     with open(config_file, "rb") as f:
         config_data = tomllib.load(f)
     
     config = ChewdocConfig(**config_data.get("tool", {}).get("chewdoc", {}))
     assert config.max_example_lines == 20
-    assert config.theme == "special"

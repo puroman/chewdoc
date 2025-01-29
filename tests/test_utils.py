@@ -51,14 +51,14 @@ def test_validate_ast_invalid_nodes():
     """Test AST validation with problematic nodes"""
     bad_node = ast.Module(body=[{"not": "a-node"}])
     with pytest.raises(ValueError) as excinfo:
-        validate_ast(bad_node, Path("bad.py"))
+        validate_ast(bad_node)
     assert "invalid node types" in str(excinfo.value).lower()
 
 
 def test_validate_ast_empty_with_docstring():
     """Test module with only a docstring"""
     node = ast.parse('"Module docstring"')
-    validate_ast(node, Path("doconly.py"))  # Should not raise
+    validate_ast(node)  # Should not raise
 
 
 def test_get_annotation_complex():
@@ -69,8 +69,8 @@ def test_get_annotation_complex():
 
 
 def test_validate_ast_with_errors():
-    """Test AST validation with error nodes"""
-    tree = ast.parse("try: pass\nexcept: pass")
-    result = validate_ast(tree)
-    assert not result.valid
-    assert "Try" in result.reason
+    """Test AST validation with empty module"""
+    tree = ast.parse("")
+    with pytest.raises(ValueError) as exc_info:
+        validate_ast(tree)
+    assert "Empty or invalid module" in str(exc_info.value)

@@ -839,37 +839,35 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
 
 
 class DocProcessor:
-    def __init__(self, config: dict, examples):
-        # Filter invalid examples immediately
-        self.examples = [
-            ex
-            for ex in (examples if isinstance(examples, list) else [examples])
-            if isinstance(ex, (str, dict))
-        ]
-        self._process_examples()
+    def __init__(self, config: ChewdocConfig, examples: Optional[Any] = None):
+        self.config = config
+        self.examples = self._normalize_examples(examples)
 
-    def _process_examples(self) -> None:
-        validated = []
-        for idx, example in enumerate(self.examples, 1):
-            # Handle string examples
-            if isinstance(example, str):
-                validated.append(
-                    {"code": example.strip(), "output": "", "type": "doctest"}
-                )
-                continue
-
-            # Validate dict examples
-            if "code" in example or "content" in example:
-                validated.append(
-                    {
-                        "type": example.get("type", "doctest"),
-                        "code": str(
-                            example.get("code", example.get("content", ""))
-                        ).strip(),
-                        "output": str(
-                            example.get("output", example.get("result", ""))
-                        ).strip(),
+    def _normalize_examples(self, examples: Any) -> list:
+        """Convert all examples to proper dict format with validation"""
+        processed = []
+        
+        if isinstance(examples, str):
+            processed.append({"code": examples.strip(), "type": "doctest"})
+        elif isinstance(examples, list):
+            for ex in examples:
+                if isinstance(ex, str):
+                    processed.append({"code": ex.strip(), "type": "doctest"})
+                elif isinstance(ex, dict) and ("code" in ex or "content" in ex):
+                    valid_ex = {
+                        "type": ex.get("type", "doctest"),
+                        "code": str(ex.get("code", ex.get("content", ""))).strip(),
+                        "output": str(ex.get("output", ex.get("result", ""))).strip()
                     }
-                )
+                    processed.append(valid_ex)
+        
+        return processed
 
-        self.examples = validated
+    def process_module(self, module_path: Path) -> dict:
+        """Public method to process a module"""
+        return process_module(
+            module_path=module_path,
+            package_root=Path("."),  # Mocked in tests
+            config=self.config,
+            examples=self.examples
+        )

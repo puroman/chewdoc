@@ -3,20 +3,16 @@ from chewdoc.config import ChewdocConfig
 from typing import Any, List, Tuple, Union, Optional
 from pathlib import Path
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
-    """Get type annotation with full type resolution"""
-    if isinstance(node, ast.Subscript):
-        base = get_annotation(node.value, config)
-        if isinstance(node.slice, ast.Tuple):
-            params = ", ".join(get_annotation(el, config) for el in node.slice.elts)
-        else:
-            params = get_annotation(node.slice, config)
-        return f"{base}[{params}]"
-    return ast.unparse(node).strip()
+    """Simplify type annotations for documentation"""
+    annotation = ast.unparse(node).strip()
+    # Replace full module paths with base names
+    return re.sub(r"\b(\w+\.)+(\w+)\b", r"\2", annotation)
 
 
 def infer_responsibilities(module: dict) -> str:
@@ -66,23 +62,23 @@ def infer_responsibilities(module: dict) -> str:
 
 
 def validate_ast(node: ast.AST) -> None:
-    """Validate AST structure for documentation processing"""
+    """Validate AST structure with more lenient rules"""
     if not isinstance(node, ast.AST):
         raise TypeError(f"Invalid AST - expected node, got {type(node).__name__}")
 
-    # Remove invalid name check for Module nodes
     if any(isinstance(stmt, (dict, str)) for stmt in getattr(node, "body", [])):
         raise ValueError("AST contains invalid node types - found serialized data")
 
     if not hasattr(node, "body"):
         raise ValueError("Invalid AST structure - missing body attribute")
 
-    # Allow empty modules without checking name
-    has_elements = any(
-        isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Assign))
+    # Allow modules with any executable statements, not just assignments/defs
+    has_content = any(
+        not isinstance(stmt, (ast.Expr, ast.Pass))
         for stmt in node.body
     )
-    if not has_elements:
+    
+    if not has_content:
         has_docstring = any(
             isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
             for stmt in node.body
