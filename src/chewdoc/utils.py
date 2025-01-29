@@ -116,24 +116,18 @@ def find_usage_examples(node: ast.AST) -> list:
     return []  # TODO: Add actual example extraction logic
 
 
-def format_function_signature(args: Union[ast.arguments, dict], returns: Union[ast.AST, dict, None], config: ChewdocConfig) -> str:
+def format_function_signature(args: ast.arguments, returns: ast.AST, config: ChewdocConfig) -> str:
     """Format function signature with type annotations"""
-    # Handle serialized arguments
-    if isinstance(args, dict):
-        args = ast.arguments(**args)
-    if isinstance(returns, dict):
-        returns = ast.parse(returns['value']).body[0].value
-        
     params = []
-    for arg in getattr(args, 'args', []):
-        name = getattr(arg, 'arg', 'unknown')
-        annotation = get_annotation(getattr(arg, 'annotation', None), config)
-        params.append(f"{name}{': ' + annotation if annotation else ''}")
-
+    for arg in args.args:
+        name = arg.arg
+        annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+        # Only show annotation if available
+        param = f"{name}{': ' + annotation if annotation else ''}"
+        params.append(param)
+        
     return_type = get_annotation(returns, config) if returns else ""
-    if return_type:
-        return f"({', '.join(params)}) -> {return_type}"
-    return f"({', '.join(params)})"
+    return f"({', '.join(params)})" + (f" -> {return_type}" if return_type else "")
 
 
 def _find_imports(node: ast.AST) -> list:
