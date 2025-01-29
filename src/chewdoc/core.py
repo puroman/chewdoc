@@ -93,7 +93,7 @@ def analyze_package(
                 try:
                     module_ast = ast.parse(f.read())
                 except SyntaxError as e:
-                    raise ValueError(f"Syntax error in {module_path}: {e}")
+                    raise ValueError(f"Syntax error in {module_path}: {e}") from e
             
             validate_ast(module_ast, module_path)
             
@@ -133,7 +133,11 @@ def analyze_package(
             click.echo(f"📊 Processed {len(package_info['modules'])} modules")
 
         return package_info
+    except SyntaxError as e:
+        raise ValueError(f"Syntax error in {module_path}: {e}") from e
     except Exception as e:
+        if isinstance(e.__cause__, SyntaxError):
+            raise ValueError(f"Syntax error: {e.__cause__}") from e
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 
@@ -348,49 +352,38 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
     return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
 
 
-def _find_imports(node: ast.AST, package_name: str) -> List[dict]:
+def _find_imports(node: ast.AST, package_name: str) -> List[Dict]:
+    """Find imports with proper stdlib detection"""
     imports = []
-    stdlib_modules = sys.stdlib_module_names
+    stdlib_modules = sys.stdlib_module_names  # Python 3.10+
     
-    for n in ast.walk(node):
-        if isinstance(n, ast.Import):
-            for alias in n.names:
-                root_module = alias.name.split('.')[0]
-                import_type = "stdlib" if root_module in stdlib_modules else "external"
-                imports.append({
-                    "name": alias.name,
-                    "full_path": alias.name,
-                    "type": import_type
-                })
-        elif isinstance(n, ast.ImportFrom):
-            module = n.module or ""
-            is_internal = False
-            
-            if n.level > 0:
-                base_parts = package_name.split('.')
-                levels = n.level - 1
-                module = '.'.join(base_parts[:-levels] + [module])
-                is_internal = True
-            else:
-                is_internal = module.startswith(package_name)
-                if is_internal:
-                    module = module[len(package_name)+1:]
-
-            for alias in n.names:
-                full_path = f"{module}.{alias.name}" if module else alias.name
-                import_type = "internal" if is_internal else "external"
+    for stmt in ast.walk(node):
+        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+            for alias in stmt.names:
+                full_path = alias.name
+                if isinstance(stmt, ast.ImportFrom) and stmt.module:
+                    full_path = f"{stmt.module}.{alias.name}"
                 
-                if import_type == "external":
-                    root_module = full_path.split('.')[0]
-                    if root_module in stdlib_modules:
-                        import_type = "stdlib"
-                
-                imports.append({
-                    "name": alias.name,
-                    "full_path": full_path,
-                    "type": import_type
-                })
-    
+                # Check if stdlib first
+                root_module = full_path.split('.')[0]
+                if root_module in stdlib_modules:
+                    imports.append({
+                        "name": full_path,
+                        "type": "stdlib",
+                        "full_path": full_path
+                    })
+                elif root_module == package_name:
+                    imports.append({
+                        "name": alias.name,
+                        "type": "internal",
+                        "full_path": full_path
+                    })
+                else:
+                    imports.append({
+                        "name": full_path,
+                        "type": "external",
+                        "full_path": full_path
+                    })
     return imports
 
 
@@ -504,27 +497,40 @@ def find_python_packages(
 ) -> Dict[str, Dict]:
     """Discover Python packages with configurable exclusion patterns"""
     config = config or load_config()
-    packages = {}
+    packages = defaultdict(dict)
+    seen_modules = set()
 
-    for entry in path.iterdir():
-        if any(
-            fnmatch.fnmatch(entry.name, pattern) for pattern in config.exclude_patterns
-        ):
+    def _is_excluded(file_path: Path) -> bool:
+        """Check if path matches any exclusion pattern"""
+        rel_path = file_path.relative_to(path)
+        return any(
+            fnmatch.fnmatch(str(part), pattern)
+            for part in rel_path.parts
+            for pattern in config.exclude_patterns
+        ) or any(
+            fnmatch.fnmatch(str(rel_path), pattern)
+            for pattern in config.exclude_patterns
+        )
+
+    for py_file in path.rglob("*.py"):
+        if _is_excluded(py_file) or py_file.name.startswith("__"):
             continue
+            
+        # Handle both regular and namespace packages
+        try:
+            module_name = _get_module_name(py_file, path)
+        except ValueError:
+            continue
+            
+        if module_name not in seen_modules:
+            packages[module_name] = {
+                "name": module_name,
+                "path": str(py_file),
+                "is_package": "__init__.py" in py_file.name
+            }
+            seen_modules.add(module_name)
 
-        if entry.is_dir():
-            # Add package discovery logic here
-            if (entry / "__init__.py").exists():
-                pkg_name = entry.name
-                packages[pkg_name] = {
-                    "path": entry,
-                    "modules": find_python_packages(entry),  # Recursive discovery
-                }
-            else:
-                # Handle non-package directories
-                packages.update(find_python_packages(entry))
-
-    return packages
+    return dict(packages)
 
 
 def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:

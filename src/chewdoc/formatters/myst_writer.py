@@ -288,3 +288,19 @@ class MystWriter:
         
         content.append("\n```\n")
         return "\n".join(content)
+
+    def _format_classes(self, classes: dict) -> str:
+        output = []
+        for class_name, class_info in classes.items():
+            output.append(f"### {class_name}\n")
+            if class_info.get('docstring'):
+                output.append(f"\n{class_info['docstring']}\n")
+            
+            # Format methods
+            if class_info.get('methods'):
+                output.append("\n#### Methods\n")
+                for method_name, method_info in class_info['methods'].items():
+                    output.append(f"##### {method_name}{self._format_function_signature(method_info)}\n")
+                    if method_info.get('docstring'):
+                        output.append(f"\n{method_info['docstring']}\n")
+        return "\n".join(output)

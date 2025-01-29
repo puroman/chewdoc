@@ -95,14 +95,16 @@ ERROR_TEMPLATES = {
 # Default Configuration
 DEFAULT_EXCLUSIONS = [
     "__pycache__",
-    "*.tests",
-    "test_*",
-    ".venv*",
+    ".*",  # Hidden directories
+    "tests/*",
+    "docs/*",
+    "build/*",
+    "dist/*",
     "venv*",
+    ".venv*",
     "env*",
     ".git",
-    "dist",
-    "build",
+    "*.egg-info"
 ]
 
 TYPE_ALIASES = {"List": "list", "Dict": "dict", "Optional": "typing.Optional"}

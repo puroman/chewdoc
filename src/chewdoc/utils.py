@@ -1,6 +1,6 @@
 import ast
 from chewdoc.config import ChewdocConfig
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Union
 from pathlib import Path
 
 
@@ -107,18 +107,27 @@ def validate_ast(node: ast.AST, module_path: Path) -> None:
     if any(isinstance(stmt, dict) for stmt in getattr(node, 'body', [])):
         raise ValueError("AST contains serialized dictionaries instead of nodes")
 
+    if hasattr(node, 'body') and any(isinstance(stmt, (str, dict)) for stmt in node.body):
+        raise ValueError("AST contains invalid node types")
+
 
 def find_usage_examples(node: ast.AST) -> list:
     """Placeholder example finder (implement your logic here)"""
     return []  # TODO: Add actual example extraction logic
 
 
-def format_function_signature(args: ast.arguments, returns: ast.AST, config: ChewdocConfig) -> str:
+def format_function_signature(args: Union[ast.arguments, dict], returns: Union[ast.AST, dict, None], config: ChewdocConfig) -> str:
     """Format function signature with type annotations"""
+    # Handle serialized arguments
+    if isinstance(args, dict):
+        args = ast.arguments(**args)
+    if isinstance(returns, dict):
+        returns = ast.parse(returns['value']).body[0].value
+        
     params = []
-    for arg in args.args:
-        name = arg.arg
-        annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+    for arg in getattr(args, 'args', []):
+        name = getattr(arg, 'arg', 'unknown')
+        annotation = get_annotation(getattr(arg, 'annotation', None), config)
         params.append(f"{name}{': ' + annotation if annotation else ''}")
 
     return_type = get_annotation(returns, config) if returns else ""

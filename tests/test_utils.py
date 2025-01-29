@@ -26,9 +26,9 @@ def test_safe_write_overwrite(tmp_path):
 
 def test_format_function_signature():
     args = ast.arguments(args=[ast.arg(arg="x"), ast.arg(arg="y")])
-    args.returns = ast.Name(id="float")
+    returns = ast.Name(id="float")
     config = ChewdocConfig()
-    sig = format_function_signature(args, config=config)
+    sig = format_function_signature(args, returns, config=config)
     assert sig == "(x, y) -> float"
 
 def test_extract_constant_values():

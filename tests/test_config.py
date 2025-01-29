@@ -6,8 +6,15 @@ from src.chewdoc.config import ChewdocConfig, load_config
 def test_config_defaults():
     config = ChewdocConfig()
     assert config.exclude_patterns == [
-        "__pycache__", "*.tests", "test_*", 
-        ".venv*", "venv*", "env*", ".git", "dist", "build"
+        "__pycache__", 
+        ".*",  # Updated pattern
+        "tests/*",
+        "docs/*",
+        "build/*",
+        "dist/*",
+        "venv*",
+        ".venv*",
+        "env*"
     ]
 
 def test_load_invalid_config(tmp_path):
