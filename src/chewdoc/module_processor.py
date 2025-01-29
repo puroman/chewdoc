@@ -4,7 +4,8 @@ import ast
 import fnmatch
 import logging
 from typing import Dict, List, Optional
-from .config import ChewdocConfig
+from chewdoc.config import ChewdocConfig
+from chewdoc.ast_utils import extract_docstrings, extract_type_info
 
 logger = logging.getLogger(__name__)
 
@@ -54,16 +55,16 @@ def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
                 self._add_import(alias.name, None)
 
         def visit_ImportFrom(self, node):
-            module = node.module or ""
+            base_module = node.module or ""
             for alias in node.names:
-                full_path = f"{module}.{alias.name}" if module else alias.name
-                self._add_import(full_path, module)
+                full_path = f"{base_module}.{alias.name}" if base_module else alias.name
+                self._add_import(full_path, base_module.split(".")[0])
 
-        def _add_import(self, full_path: str, base_module: Optional[str]):
+        def _add_import(self, full_path: str, root_module: Optional[str]):
             import_type = "external"
-            if full_path.split(".", 1)[0] == package_name:
+            if full_path.startswith(package_name):
                 import_type = "internal"
-            elif base_module and base_module in stdlib_modules:
+            elif root_module and root_module in stdlib_modules:
                 import_type = "stdlib"
             
             imports.append({
@@ -82,13 +83,20 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
     for stmt in node.body:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
-                if isinstance(target, ast.Name) and target.id.isupper():
-                    constant_type = "Any"
-                    if stmt.annotation:
-                        constant_type = ast.unparse(stmt.annotation)
+                if isinstance(target, ast.Name) and (target.id.isupper() or target.id == "__version__"):
+                    value = ast.unparse(stmt.value).strip()
+                    const_type = "Any"
+                    if hasattr(stmt, 'type_comment') and stmt.type_comment:
+                        const_type = stmt.type_comment
+                    else:
+                        # Infer type from value
+                        if value.isdigit():
+                            const_type = "int"
+                        elif value.startswith(("'", '"')):
+                            const_type = "str"
                     constants[target.id] = {
-                        "value": ast.unparse(stmt.value),
-                        "type": constant_type
+                        "value": value,
+                        "type": const_type
                     }
         elif isinstance(stmt, ast.AnnAssign):
             if isinstance(stmt.target, ast.Name) and stmt.target.id.isupper():
@@ -99,9 +107,26 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
     return constants
 
 class DocProcessor:
-    def __init__(self, config: ChewdocConfig):
+    def __init__(self, config: ChewdocConfig, examples: Optional[List] = None):
         self.config = config
+        self.examples = self._validate_examples(examples or [])
+
+    def _validate_examples(self, raw_examples: List) -> List[Dict]:
+        valid = []
+        # Handle single string example
+        if isinstance(raw_examples, str):
+            return [{"code": raw_examples, "output": None}]
         
+        for ex in raw_examples:
+            if isinstance(ex, str):
+                valid.append({"code": ex, "output": None})
+            elif isinstance(ex, dict):
+                if "content" in ex:  # Legacy format
+                    valid.append({"code": ex["content"], "output": ex.get("result")})
+                elif "code" in ex:
+                    valid.append({"code": str(ex["code"]), "output": ex.get("output")})
+        return valid
+
     def process_module(self, file_path: Path) -> dict:
         """Process a single module file"""
         try:

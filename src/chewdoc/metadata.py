@@ -33,3 +33,7 @@ def get_pypi_metadata(name: str, version: str) -> dict:
         }
     except subprocess.CalledProcessError as e:
         raise ValueError(f"PyPI package {name} not found") from e 
+
+def _download_pypi_package(package_name: str, temp_dir: Path) -> Path:
+    """Placeholder for PyPI package download functionality"""
+    raise NotImplementedError("Remote package analysis is not yet implemented") 
