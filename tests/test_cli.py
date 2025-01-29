@@ -95,7 +95,8 @@ def test_cli_version():
 
 def test_cli_missing_source_type():
     runner = CliRunner()
-    result = runner.invoke(cli, ["chew", "mypkg"])
+    result = runner.invoke(cli, ["chew", "mypkg", "-o", "docs"])
+    assert result.exit_code == 2
     assert "Must specify --local or --pypi" in result.output
 
 
