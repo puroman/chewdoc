@@ -66,7 +66,7 @@ def find_python_packages(path: Path, config: ChewdocConfig) -> list:
         if _is_package_dir(p, config):
             try:
                 pkg_name = get_package_name(p)
-                if not _should_exclude(p, config.exclude_patterns):
+                if not _is_excluded(p, config):
                     packages.append({
                         "name": pkg_name,
                         "path": str(p),

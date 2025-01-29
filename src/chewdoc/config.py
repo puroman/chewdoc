@@ -49,6 +49,14 @@ class ChewdocConfig(BaseModel):
     max_example_lines: int = Field(
         default=10, ge=1, description="Max lines in usage examples"
     )
+    allow_namespace_packages: bool = Field(
+        default=True,
+        description="Whether to consider namespace packages without __init__.py"
+    )
+    temp_dir: Path = Field(
+        default_factory=lambda: Path("/tmp/chewdoc"),
+        description="Temporary directory for package processing"
+    )
 
     model_config = ConfigDict(extra="forbid")
 

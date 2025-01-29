@@ -6,6 +6,8 @@ from datetime import datetime
 import sys
 import traceback
 import logging
+from typing import Optional
+from src.chewdoc.config import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -18,64 +20,19 @@ def cli():
 
 
 @cli.command()
-@click.argument("source", default=None, required=False)
-@click.option("--version", help="Package version")
-@click.option("--local", is_flag=True, help="Local package")
-@click.option("--pypi", is_flag=True, help="PyPI package")
-@click.option("--output", "-o", default="docs", help="Output directory")
-@click.option("--verbose", "-v", is_flag=True, help="Show detailed progress")
-def chew(source, version, local, pypi, output, verbose):
-    """Generate documentation for a Python package."""
-    start_time = datetime.now()
-
-    # Validate source type
-    if not local and not pypi:
-        raise click.UsageError("Must specify --local or --pypi")
-    
-    # Validate source argument
-    if source is None:
-        if not local:
-            raise click.UsageError("Missing argument 'SOURCE'")
-        source = "."
-    
-    # Validate output directory
-    output_path = Path(output)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # Actual processing logic
-    try:
-        result = analyze_package(
-            source=source, version=version, is_local=local, verbose=verbose
-        )
-
-        # Add validation checkpoint
-        invalid_examples = sum(
-            1
-            for m in result["modules"]
-            for ex in m.get("examples", [])
-            if not isinstance(ex, dict) or "code" not in ex
-        )
-        if invalid_examples > 0:
-            logger.warning(
-                f"Found {invalid_examples} malformed examples in final output"
-            )
-
-        if verbose:
-            total_examples = sum(len(m.get("examples", [])) for m in result["modules"])
-            click.echo(f"📋 Found {total_examples} usage examples across modules")
-
-        generate_docs(result, output_path, verbose=verbose)
-
-        if verbose:
-            duration = datetime.now() - start_time
-            click.echo(f"⏱️  Documentation chewed in {duration.total_seconds():.3f}s")
-            click.echo(f"📂 Output location: {output_path.resolve()}")
-
-        return 0  # Explicit success return code
-
-    except Exception as e:
-        logger.error(f"❌ Error: {str(e)}")
-        if verbose:
-            logger.error(f"Stack trace:\n{traceback.format_exc()}")
-        click.echo(f"Error: {str(e)}", err=True)
-        sys.exit(1)
+@click.argument("source", type=click.Path(exists=True))
+@click.option("--output", "-o", required=True, type=click.Path(), help="Output directory")
+@click.option("--local/--pypi", default=True, help="Local package or PyPI package")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--version", help="Package version to analyze (for PyPI packages)")
+def chew(source: str, output: str, local: bool, verbose: bool, version: Optional[str] = None) -> None:
+    """Main entry point for package analysis"""
+    config = load_config()
+    result = analyze_package(
+        source=source, 
+        version=version, 
+        is_local=local, 
+        config=config, 
+        verbose=verbose
+    )
+    generate_docs(result, Path(output), verbose=verbose)

@@ -13,6 +13,10 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
     """Process Python modules in package directory."""
     modules = []
     for file_path in package_path.rglob("*.py"):
+        # Skip __init__.py files
+        if file_path.name == "__init__.py":
+            continue
+        
         if _is_excluded(file_path, config.exclude_patterns):
             continue
         

@@ -1,15 +1,16 @@
 import click
 from pathlib import Path
-from chewdoc.metadata import get_package_metadata, _download_pypi_package
-from chewdoc.module_processor import process_modules, DocProcessor
-from chewdoc.package_discovery import find_python_packages
+from src.chewdoc.metadata import get_package_metadata, _download_pypi_package
+from src.chewdoc.module_processor import process_modules, DocProcessor
+from src.chewdoc.package_discovery import find_python_packages
 from src.chewdoc.package_analysis import analyze_package, analyze_relationships
 from src.chewdoc.doc_generation import generate_docs
 from src.chewdoc.config import ChewdocConfig, load_config
 import logging
 import ast
 import sys
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from .types import ModuleInfo  # Relative import
 
 logger = logging.getLogger(__name__)
 
@@ -24,54 +25,60 @@ def cli(source: str, output: str, local: bool, verbose: bool) -> None:
     package_info = analyze_package(source, is_local=local, config=config, verbose=verbose)
     generate_docs(package_info, Path(output), verbose=verbose)
 
-def analyze_package(source: str, is_local: bool, config: ChewdocConfig, verbose: bool = False) -> dict:
-    """Analyze a Python package structure and contents."""
+def analyze_package(
+    source: str,
+    is_local: bool = False,
+    config: Optional[ChewdocConfig] = None,
+    verbose: bool = False,
+    version: Optional[str] = None
+) -> List[ModuleInfo]:
+    """
+    Analyze a package and extract module information.
+
+    Args:
+        source (str): Path or name of the package to analyze
+        is_local (bool, optional): Whether the package is local. Defaults to False.
+        config (ChewdocConfig, optional): Configuration for package analysis. Defaults to None.
+        verbose (bool, optional): Enable verbose logging. Defaults to False.
+        version (str, optional): Package version to analyze. Defaults to None.
+
+    Raises:
+        ValueError: If source path is invalid or no valid modules are found
+    """
+    # Use default config if not provided
+    config = config or ChewdocConfig()
+
+    # Validate source path
+    source_path = Path(source)
+    
+    # Handle PyPI package download if not local
+    if not is_local:
+        try:
+            # If version is provided, append it to the source
+            download_source = f"{source}=={version}" if version else source
+            source_path = _download_pypi_package(download_source, config.temp_dir)
+        except Exception as download_error:
+            logger.warning(f"PyPI package download failed: {download_error}")
+            source_path = config.temp_dir / source
+            source_path.mkdir(parents=True, exist_ok=True)
+            (source_path / "__init__.py").touch()
+    
+    # Validate source path
+    if not source_path.exists():
+        raise ValueError(f"Source path does not exist: {source}")
+
+    # Process modules
     try:
-        package_path = Path(source).resolve()
-        
-        # Validate source path
-        if not package_path.exists():
-            raise ValueError(f"Source path does not exist: {source}")
-        
-        # Download PyPI package if needed
-        if not is_local:
-            package_path = _download_pypi_package(source, config.temp_dir)
+        modules = process_modules(source_path, config)
+    except Exception as process_error:
+        # Re-raise any processing errors
+        raise RuntimeError(str(process_error))
 
-        # Find Python packages
-        packages = find_python_packages(package_path, config)
-        
-        # Validate package discovery
-        if not packages:
-            raise ValueError(f"No valid Python packages found in {source}")
+    # Validate modules
+    if not modules:
+        raise ValueError("No valid modules found")
 
-        # Process modules with error handling
-        modules = []
-        for pkg in packages:
-            try:
-                pkg_modules = process_modules(Path(pkg["path"]), config)
-                modules.extend(pkg_modules)
-            except Exception as module_error:
-                if verbose:
-                    logger.warning(f"Error processing package {pkg['name']}: {module_error}")
-        
-        # Final validation
-        if not modules:
-            raise ValueError(f"No valid modules found in package {source}")
-
-        # Prepare package metadata
-        primary_package = packages[0]
-        return {
-            "name": primary_package["name"],
-            "package": primary_package["name"],
-            "modules": modules,
-            "dependencies": analyze_relationships(modules, primary_package["name"]),
-            "metadata": get_package_metadata(source, None, is_local)
-        }
-    except Exception as e:
-        logger.error(f"Package analysis failed: {str(e)}")
-        if verbose:
-            logger.exception("Detailed error:")
-        raise RuntimeError(f"Package analysis failed: {str(e)}")
+    return modules
 
 def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
     imports = []

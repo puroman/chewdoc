@@ -46,24 +46,34 @@ def test_analyze_local_package(tmp_path, mocker):
     
     # Mock namespace detection
     mocker.patch("src.chewdoc.package_discovery._is_namespace_package", return_value=False)
+    mocker.patch("src.chewdoc.core.process_modules", return_value=[{"name": "module"}])
     result = analyze_package(str(pkg_root), is_local=True, config=ChewdocConfig())
-    assert "test_pkg" in result["name"]
-    assert len(result["modules"]) == 1
+    assert len(result) == 1
+    assert result[0]["name"] == "module"
 
 
-def test_analyze_pypi_package():
+def test_analyze_pypi_package(tmp_path):
     with patch("subprocess.run"), \
          patch("src.chewdoc.package_discovery.get_package_name") as mock_name, \
-         patch("src.chewdoc.core.process_modules") as mock_modules:
+         patch("src.chewdoc.core.process_modules") as mock_modules, \
+         patch("src.chewdoc.metadata._download_pypi_package") as mock_download:
         mock_name.return_value = "testpkg"
         mock_modules.return_value = [{"name": "testmod"}]
         
+        # Create a mock package path
+        mock_pkg_path = tmp_path / "testpkg"
+        mock_pkg_path.mkdir()
+        (mock_pkg_path / "__init__.py").touch()
+        
+        mock_download.return_value = mock_pkg_path
+        
         result = analyze_package("testpkg", is_local=False, config=ChewdocConfig())
-        assert "testpkg" in result["name"]
+        assert len(result) == 1
+        assert result[0]["name"] == "testmod"
 
 
 def test_analyze_invalid_package(tmp_path):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="No valid modules found"):
         analyze_package(
             str(tmp_path),
             is_local=True,
@@ -72,12 +82,13 @@ def test_analyze_invalid_package(tmp_path):
 
 
 def test_analyze_module_processing(tmp_path, mocker):
-    mocker.patch("src.chewdoc.core.process_modules")
-    analyze_package(
-        str(tmp_path),
-        is_local=True,
-        config=ChewdocConfig()
-    )
+    mock_process = mocker.patch("src.chewdoc.core.process_modules", return_value=[])
+    with pytest.raises(ValueError, match="No valid modules found"):
+        analyze_package(
+            str(tmp_path),
+            is_local=True,
+            config=ChewdocConfig()
+        )
 
 
 def test_skip_empty_init(tmp_path):
@@ -98,12 +109,12 @@ def test_analyze_empty_package(tmp_path):
     with patch("src.chewdoc.core.process_modules") as mock_process:
         mock_process.return_value = []
         # Add config parameter
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError, match="No valid modules found"):
             analyze_package(source=str(empty_pkg), is_local=True, config=ChewdocConfig())
 
 
 def test_analyze_invalid_source():
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError, match="Source path does not exist"):
         analyze_package(
             source="/invalid/path",
             is_local=True,
@@ -115,14 +126,13 @@ def test_analyze_invalid_source():
 def test_analyze_syntax_error(tmp_path):
     bad_file = tmp_path / "invalid.py"
     bad_file.write_text("def invalid_syntax")
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ValueError, match="No valid modules found"):
         analyze_package(
             source=str(tmp_path),
             is_local=True,
             config=ChewdocConfig(),
             verbose=False
         )
-    assert "No valid modules found" in str(exc_info.value)
 
 
 def test_find_python_packages_namespace(tmp_path):
@@ -196,15 +206,13 @@ def test_analyze_package_error_handling(tmp_path):
     """Test error handling in package analysis"""
     test_path = tmp_path / "valid_path"
     test_path.mkdir()
+    (test_path / "__init__.py").touch()
 
-    with patch("pathlib.Path.exists") as mock_exists, patch(
-        "src.chewdoc.core.process_modules"
-    ) as mock_process:
-        mock_exists.return_value = True
+    with patch("src.chewdoc.core.process_modules") as mock_process:
         mock_process.side_effect = RuntimeError("Simulated failure")
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="Simulated failure"):
             analyze_package(
-                str(test_path), 
+                str(test_path),
                 is_local=True,
                 config=ChewdocConfig(),
                 verbose=False
