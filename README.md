@@ -17,6 +17,9 @@
 ## Roadmap
 
 - [ ] LLM-assisted documentation analysis & generation
+- [ ] LLM-assisted documentation testing
+- [ ] LLM-assisted documentation validation
+- [ ] LLM-assisted documentation deployment
 
 ## Installation
 
@@ -50,7 +53,7 @@ results = analyze_package("mypackage")
 generate_docs(results, output_format="myst")
 ```
 
-> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms.
+> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms and LLM-assisted workflows.
 
 ## Configuration
 
