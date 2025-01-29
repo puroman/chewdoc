@@ -70,39 +70,25 @@ def validate_ast(node: ast.AST) -> None:
     if not isinstance(node, ast.AST):
         raise TypeError(f"Invalid AST - expected node, got {type(node).__name__}")
 
-    # Check for common serialization issues
+    # Remove invalid name check for Module nodes
     if any(isinstance(stmt, (dict, str)) for stmt in getattr(node, "body", [])):
         raise ValueError("AST contains invalid node types - found serialized data")
 
     if not hasattr(node, "body"):
         raise ValueError("Invalid AST structure - missing body attribute")
 
-    # Allow __init__.py files with only pass statements
-    is_init_file = node.name == "__init__.py"
-    if is_init_file:
-        if all(isinstance(stmt, ast.Pass) for stmt in node.body):
-            return
-        if not node.body:
-            return
-
-    # Check for minimum required elements
+    # Allow empty modules without checking name
     has_elements = any(
         isinstance(stmt, (ast.FunctionDef, ast.ClassDef, ast.Assign))
         for stmt in node.body
     )
     if not has_elements:
-        # Allow modules with only docstrings
         has_docstring = any(
             isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
             for stmt in node.body
         )
         if not has_docstring:
             raise ValueError("Empty or invalid module AST structure")
-
-    if hasattr(node, "body") and any(
-        isinstance(stmt, (str, dict)) for stmt in node.body
-    ):
-        raise ValueError("AST contains invalid node types")
 
 
 def find_usage_examples(node: ast.AST) -> list:

@@ -220,24 +220,28 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature without catching exceptions"""
+        """Format function signature with robust type checking"""
         args = func_info.get("args")
+        returns = func_info.get("returns")
+        
+        if isinstance(args, ast.arguments):
+            return format_function_signature(args, returns, self.config)
+        
         if isinstance(args, dict):
-            # Validate args structure
             args_list = args.get("args", [])
             if not isinstance(args_list, list):
-                raise ValueError(f"Invalid arguments structure: 'args' field must be a list (got {type(args_list).__name__})")
+                raise ValueError(f"Invalid args structure: expected list, got {type(args_list).__name__}")
             
             return format_function_signature(
                 ast.arguments(
                     args=[ast.arg(arg=arg) for arg in args_list],
                     defaults=args.get("defaults", []),
                 ),
-                func_info.get("returns"),
+                returns,
                 self.config
             )
-        else:
-            raise ValueError(f"Unsupported arguments type: {type(args).__name__}")
+        
+        raise ValueError(f"Unsupported arguments type: {type(args).__name__}")
 
     def _format_usage_examples(self, examples: list) -> str:
         """Format usage examples with proper error handling"""

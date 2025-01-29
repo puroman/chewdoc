@@ -137,7 +137,7 @@ def analyze_package(
                 except SyntaxError as e:
                     raise ValueError(f"Syntax error in {module_path}: {e}") from e
 
-            validate_ast(module_ast, module_path)
+            validate_ast(module_ast)
 
             module_info = {
                 "name": module_name,

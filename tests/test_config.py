@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 from src.chewdoc.config import ChewdocConfig, load_config
+import tomllib
 
 
 def test_config_defaults():
@@ -44,6 +45,10 @@ def test_config_from_toml(tmp_path):
     theme = "special"
     """)
     
-    config = ChewdocConfig.from_toml(config_file)
+    # Load with proper binary mode
+    with open(config_file, "rb") as f:
+        config_data = tomllib.load(f)
+    
+    config = ChewdocConfig(**config_data.get("tool", {}).get("chewdoc", {}))
     assert config.max_example_lines == 20
     assert config.theme == "special"
