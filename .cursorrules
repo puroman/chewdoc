@@ -38,6 +38,14 @@
                 "Validate template variables before rendering",
                 "Handle missing examples gracefully"
             ]
+        },
+        {
+            "pattern": "src/chewdoc/__main__",
+            "hints": [
+                "Use Click for all CLI argument handling",
+                "Keep entry point simple - delegate to CLI module",
+                "Verify argument consistency between click decorators and function params"
+            ]
         }
     ]
 } 

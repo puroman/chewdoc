@@ -18,7 +18,7 @@ def cli():
 
 
 @cli.command()
-@click.argument("source")
+@click.argument("source", default=".")
 @click.option("--version", help="Package version")
 @click.option("--local", is_flag=True, help="Local package")
 @click.option("--output", "-o", default="docs", help="Output directory")
@@ -27,11 +27,9 @@ def chew(source, version, local, output, verbose):
     """Main command implementation"""
     start_time = datetime.now()
 
-    # Determine source type
-    if sum([local]) != 1:
-        raise click.UsageError("Must specify exactly one of --local")
-
-    source_type = "local"
+    # Simplified source type validation
+    if not local:
+        raise click.UsageError("Remote package analysis not implemented yet")
 
     # Actual processing logic
     try:

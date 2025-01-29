@@ -14,6 +14,12 @@
 - Example extraction from docstrings and tests
 - Flexible configuration via `pyproject.toml`
 
+## Roadmap
+
+- [ ] LLM-assisted documentation analysis & generation
+
+## Installation
+
 ```bash
 # Install with pip substitute
 python3 -m pip install uv
@@ -27,12 +33,12 @@ cd chewdoc && uv pip install -e .
 ## Get Started
 
 ```bash
-# Generate docs for current project (default)
-chew
+# Generate docs for current project (default output dir)
+chew . --output docs/
 
 # Analyze specific package
-chew ./my_module --output docs/
-chew requests --output docs/requests.myst
+chew ./my_module --output docs/ --verbose
+chew requests --output docs/requests --local
 ```
 
 ### Research Notes
@@ -76,10 +82,17 @@ chewdoc/
 
 ## Contributing
 
-We welcome research collaborations! Please see our [contribution guidelines](CONTRIBUTING.md) for:
-- Experimental design principles
+We welcome collaborations expecialy from research teams! 
+We would like to work on the following topics:
 - Benchmarking methodologies
 - Documentation patterns research
+- Experimental design principles
+- LLM-assisted and LLM-led documentation workflows
+- Natural language documentation generation
+- On-demand documentation generation
+- Usage examples generation
+
+Please see our [contribution guidelines](CONTRIBUTING.md) for more details.
 
 ---
 
