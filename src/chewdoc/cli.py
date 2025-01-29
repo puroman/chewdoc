@@ -20,7 +20,7 @@ def cli():
 
 
 @cli.command()
-@click.argument("source", type=click.Path(exists=True))
+@click.argument("source", type=str)
 @click.option("--output", "-o", required=True, type=click.Path(), help="Output directory")
 @click.option("--local/--pypi", default=None, help="Local package or PyPI package")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
@@ -32,6 +32,10 @@ def chew(source: str, output: str, local: Optional[bool], verbose: bool, version
     # Validate source type
     if local is None:
         raise click.UsageError("Must specify --local or --pypi")
+
+    # Validate source path for local packages
+    if local and not Path(source).exists():
+        raise click.UsageError(f"Local source path does not exist: {source}")
 
     # Prepare output directory
     output_path = Path(output)
