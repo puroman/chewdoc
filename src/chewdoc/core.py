@@ -37,14 +37,14 @@ def analyze_package(
         >>> "requests" in result["package"]
         True
     """
+    module_path = Path(source)  # Initialize early
     if is_local:
-        source_path = Path(source).resolve()
-        if not source_path.exists():
+        if not module_path.exists():
             # Create empty file for test purposes
-            if "tests/fixtures" in str(source_path):
-                source_path.touch()
+            if "tests/fixtures" in str(module_path):
+                module_path.touch()
             else:
-                raise ValueError(f"Invalid source path: {source_path}")
+                raise ValueError(f"Invalid source path: {source}")
 
     start_time = datetime.now()
     if verbose:
@@ -59,7 +59,7 @@ def analyze_package(
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
         package_info.setdefault("imports", defaultdict(list))
-        package_path = get_package_path(Path(source), is_local)
+        package_path = get_package_path(module_path, is_local)
         package_name = _get_package_name(package_path)
         package_info["package"] = package_name
 

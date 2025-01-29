@@ -1,6 +1,6 @@
 import ast
 from chewdoc.config import ChewdocConfig
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Tuple, Union, Optional
 from pathlib import Path
 
 
@@ -116,18 +116,20 @@ def find_usage_examples(node: ast.AST) -> list:
     return []  # TODO: Add actual example extraction logic
 
 
-def format_function_signature(args: ast.arguments, returns: ast.AST, config: ChewdocConfig) -> str:
+def format_function_signature(args: Optional[ast.arguments], returns: Optional[ast.AST], config: ChewdocConfig) -> str:
     """Format function signature with type annotations"""
     params = []
-    for arg in args.args:
-        name = arg.arg
-        annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
-        # Only show annotation if available
-        param = f"{name}{': ' + annotation if annotation else ''}"
-        params.append(param)
-        
+    # Handle missing arguments
+    if args and getattr(args, 'args', None):
+        for arg in args.args:
+            name = arg.arg
+            annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+            param = f"{name}{': ' + annotation if annotation else ''}"
+            params.append(param)
+    
     return_type = get_annotation(returns, config) if returns else ""
-    return f"({', '.join(params)})" + (f" -> {return_type}" if return_type else "")
+    signature = f"({', '.join(params)})" if params else "()"
+    return signature + (f" -> {return_type}" if return_type else "")
 
 
 def _find_imports(node: ast.AST) -> list:
