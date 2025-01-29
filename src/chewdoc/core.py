@@ -364,17 +364,15 @@ def _find_imports(node: ast.AST, package_name: str) -> List[Dict]:
                 if isinstance(stmt, ast.ImportFrom) and stmt.module:
                     full_path = f"{stmt.module}.{alias.name}"
                 
-                # Split the first component for stdlib check
                 root_module = full_path.split('.')[0]
+                import_type = "external"
                 
-                # Determine import type
                 if root_module in stdlib_modules:
                     import_type = "stdlib"
                 elif full_path.startswith(package_name):
                     import_type = "internal"
-                else:
-                    import_type = "external"
-                
+                    full_path = full_path[len(package_name)+1:]  # Strip package prefix
+
                 imports.append({
                     "name": alias.name,
                     "full_path": full_path,
@@ -462,14 +460,13 @@ def extract_type_info(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
     return type_info
 
 
-def _get_arg_types(args: ast.arguments, config: ChewdocConfig) -> Dict[str, str]:
+def _get_arg_types(args: Optional[ast.arguments], config: ChewdocConfig) -> Dict[str, str]:
     """Extract argument types from a function definition."""
     arg_types = {}
-    # Handle cases with just ... in args
-    if not getattr(args, "args", None):
+    if not args or not hasattr(args, 'args'):
         return arg_types
-    for arg in args.args:
-        if arg.annotation:
+    for arg in getattr(args, 'args', []):
+        if hasattr(arg, 'annotation') and arg.annotation:
             arg_types[arg.arg] = get_annotation(arg.annotation, config)
     return arg_types
 

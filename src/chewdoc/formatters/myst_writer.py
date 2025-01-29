@@ -146,21 +146,18 @@ class MystWriter:
                 f"[[{cls_name}]]",
                 f"**Description**: {cls_info.get('doc', 'No class documentation')}",
             ]
-
+            
             if cls_info.get("methods"):
                 class_doc.append("\n### Methods")
                 for method, details in cls_info["methods"].items():
-                    # Safely handle args/returns in test data
-                    args = details.get("args", ast.arguments())
-                    returns = details.get("returns", ast.Name(id="None"))
                     signature = self._format_function_signature(details)
                     class_doc.append(f"- `{method}{signature}`")
-        
+            
+            sections.append("\n".join(class_doc))
+
         # Handle functions
         for func_name, func_info in types.get("functions", {}).items():
-            # Safely handle args/returns in test data
             signature = self._format_function_signature(func_info)
-            
             func_doc = [
                 f"## `{func_name}{signature}`",
                 f"**Description**: {func_info.get('doc', 'No function documentation')}",
@@ -222,10 +219,23 @@ class MystWriter:
         args_node = func_info.get('args')
         returns_node = func_info.get('returns')
         
+        # Add defensive checks for node types
         if isinstance(args_node, dict):  # Handle serialized format
-            args_node = ast.arguments(**args_node)
+            try:
+                args_node = ast.arguments(
+                    posonlyargs=[ast.arg(arg=a['arg']) for a in args_node.get('posonlyargs', [])],
+                    args=[ast.arg(arg=a['arg']) for a in args_node.get('args', [])],
+                    vararg=ast.arg(arg=args_node['vararg']['arg']) if args_node.get('vararg') else None,
+                    kwonlyargs=[ast.arg(arg=a['arg']) for a in args_node.get('kwonlyargs', [])],
+                    kw_defaults=args_node.get('kw_defaults', []),
+                    kwarg=ast.arg(arg=args_node['kwarg']['arg']) if args_node.get('kwarg') else None,
+                    defaults=args_node.get('defaults', [])
+                )
+            except KeyError as e:
+                raise ValueError(f"Malformed arguments node: {e}") from e
+            
         if isinstance(returns_node, dict):  # Handle serialized format
-            returns_node = ast.parse(returns_node['value']).body[0].value
+            returns_node = ast.parse(returns_node['value']).body[0].value if returns_node else None
             
         return format_function_signature(
             args=args_node,
@@ -285,6 +295,11 @@ class MystWriter:
             content.append("\n## Examples\n")
             for example in module['examples']:
                 content.append(f"```python\n{example['content']}\n```\n")
+        
+        # Add API reference section
+        if module.get('type_info'):
+            content.append("\n## API Reference\n")
+            content.append(self._format_api_reference(module['type_info']))
         
         content.append("\n```\n")
         return "\n".join(content)
