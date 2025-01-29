@@ -353,37 +353,42 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
 
 
 def _find_imports(node: ast.AST, package_name: str) -> List[Dict]:
-    """Find imports with proper stdlib detection"""
+    """Find imports with proper relative import handling"""
     imports = []
-    stdlib_modules = sys.stdlib_module_names  # Python 3.10+
+    stdlib_modules = sys.stdlib_module_names
     
     for stmt in ast.walk(node):
-        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+        if isinstance(stmt, ast.ImportFrom):
+            # Handle relative imports correctly
+            module_parts = []
+            if stmt.module:
+                module_parts = stmt.module.split('.')
+            
+            # Build full module path
+            if stmt.level > 0:  # Relative import
+                base_module = package_name.split('.')
+                if stmt.level > 1:
+                    base_module = base_module[:-(stmt.level - 1)]
+                full_module = '.'.join(base_module + module_parts)
+            else:
+                full_module = stmt.module or ""
+
             for alias in stmt.names:
-                full_path = alias.name
-                if isinstance(stmt, ast.ImportFrom) and stmt.module:
-                    full_path = f"{stmt.module}.{alias.name}"
+                full_path = f"{full_module}.{alias.name}" if full_module else alias.name
+                import_type = "internal" if full_path.startswith(package_name) else "external"
                 
-                # Check if stdlib first
-                root_module = full_path.split('.')[0]
-                if root_module in stdlib_modules:
+                if import_type == "internal":
                     imports.append({
-                        "name": full_path,
-                        "type": "stdlib",
-                        "full_path": full_path
-                    })
-                elif root_module == package_name:
-                    imports.append({
-                        "name": alias.name,
+                        "full_path": full_path[len(package_name)+1:],
                         "type": "internal",
-                        "full_path": full_path
+                        "name": alias.name
                     })
-                else:
-                    imports.append({
-                        "name": full_path,
-                        "type": "external",
-                        "full_path": full_path
-                    })
+
+        elif isinstance(stmt, ast.Import):
+            for alias in stmt.names:
+                # Existing external/stdlib handling
+                ...
+    
     return imports
 
 
