@@ -3,19 +3,13 @@ import textwrap
 from pathlib import Path
 from unittest.mock import patch, mock_open
 import pytest
-from src.chewdoc.core import (
-    analyze_package,
-    find_python_packages,
-    is_namespace_package,
-    _get_package_name,
-    _find_constants,
-    DocProcessor,
-    _find_imports,
-    _get_module_name,
-)
+from src.chewdoc.core import analyze_package
+from src.chewdoc.module_processor import DocProcessor, _find_constants, _find_imports, _get_module_name
 from src.chewdoc.formatters.myst_writer import generate_docs, MystWriter
 from src.chewdoc.config import ChewdocConfig
 import subprocess
+from src.chewdoc.package_discovery import find_python_packages, _get_package_name, _is_namespace_package
+from src.chewdoc.metadata import get_pypi_metadata
 
 
 def test_get_module_name():
@@ -187,18 +181,18 @@ def test_is_namespace_package(tmp_path):
     init_file.write_text(
         "__path__ = __import__('pkgutil').extend_path(__path__, __name__)\n"
     )
-    assert is_namespace_package(pkg_path) is True
+    assert _is_namespace_package(pkg_path) is True
 
     # Test PEP 420 namespace (no __init__.py)
     empty_pkg = tmp_path / "empty_ns"
     empty_pkg.mkdir()
-    assert is_namespace_package(empty_pkg) is True
+    assert _is_namespace_package(empty_pkg) is True
 
     # Test regular package with non-empty init
     reg_pkg = tmp_path / "regular_pkg"
     reg_pkg.mkdir()
     (reg_pkg / "__init__.py").write_text("__version__ = '1.0'")
-    assert is_namespace_package(reg_pkg) is False
+    assert _is_namespace_package(reg_pkg) is False
 
 
 def test_find_constants():
