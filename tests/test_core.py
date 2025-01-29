@@ -305,7 +305,8 @@ def test_process_invalid_module():
     """Test module processing with invalid AST"""
     processor = DocProcessor(config=ChewdocConfig())
     
-    with patch('src.chewdoc.core.process_module') as mock_process:
-        mock_process.return_value = {"type_info": {}}
+    # Mock the class method directly
+    with patch.object(DocProcessor, 'process_module', return_value={"type_info": {}}) as mock_process:
         result = processor.process_module(Path("fake.py"))
         assert "type_info" in result
+        mock_process.assert_called_once_with(Path("fake.py"))
