@@ -18,10 +18,11 @@ class MystWriter:
         self.package_data = {}
         self.config.max_example_lines = getattr(self.config, 'max_example_lines', 15)  # Add default
 
-    def generate(self, package_data: dict, output_path: Path, verbose: bool = False) -> None:
-        """Generate structured MyST documentation with separate files"""
-        if not package_data or "modules" not in package_data:
-            raise ValueError("Invalid package data")
+    def generate(self, package_data: Dict[str, Any], output_path: Path, verbose: bool = False) -> None:
+        """Generate documentation files"""
+        self.package_data = package_data
+        self.current_module = {}  # Track current module context
+        index_content = self._format_package_index(package_data)
         
         # Ensure required fields with safe defaults
         package_data.setdefault("name", "Unknown Package")
@@ -36,29 +37,29 @@ class MystWriter:
         
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Store package data and generate content
-        self.package_data = package_data
-        
         # Generate module files
-        for module in package_data["modules"]:
+        for mod in package_data["modules"]:
+            self.current_module = mod.copy()  # Set module context
+            module = mod if isinstance(mod, dict) else {"name": str(mod)}
             module_file = output_dir / f"{module['name']}.md"
             content = self._format_module(module)
             module_file.write_text(content)
 
         # Generate index file
-        index_content = self._format_package_index(package_data)
         (output_dir / "index.md").write_text(index_content)
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
         content = [
-            f"# {package_data['name']} Documentation\n",
+            f"# {package_data.get('name', package_data['package'])} Documentation\n",
             "## Package Overview",
             self._format_metadata(package_data),
             "\n## Modules\n"
         ]
         
-        for module in package_data["modules"]:
+        for mod in package_data["modules"]:
+            self.current_module = mod.copy()  # Set module context
+            module = mod if isinstance(mod, dict) else {"name": str(mod)}
             module.setdefault("internal_deps", [])
             content.append(f"## {module['name']}\n")
             content.append(self._format_module_content(module))
@@ -67,27 +68,40 @@ class MystWriter:
 
     def _format_module_content(self, module: dict) -> str:
         """Format module docs with package context"""
-        return MODULE_TEMPLATE.format(
-            name=module["name"],
-            package=self.package_data["package"],
-            role_section=self._format_role(module),
-            layer_section=self._format_architecture_layer(module),
-            imports_section=self._format_imports(module.get("imports", []), self.package_data["package"]),
-            description=self._get_module_description(module),
-            dependencies=self._format_dependencies(module["internal_deps"]),
-            usage_examples=self._format_usage_examples(
-                module.get("examples", []), 
-                config=self.config
-            ),
-            api_reference=self._format_api_reference(module.get("type_info", {}))
-        )
+        module = module.copy()
+        module.setdefault("type_info", {})
+        module.setdefault("examples", [])
+        module.setdefault("docstrings", {})
+        try:
+            return MODULE_TEMPLATE.format(
+                name=module["name"],
+                package=self.package_data["package"],
+                role_section=self._format_role(module),
+                layer_section=self._format_architecture_layer(module),
+                imports_section=self._format_imports(module.get("imports", []), self.package_data["package"]),
+                description=self._get_module_description(module),
+                dependencies=self._format_dependencies(module["internal_deps"]),
+                usage_examples=self._format_usage_examples(
+                    module.get("examples", []), 
+                    config=self.config
+                ),
+                api_reference=self._format_api_reference(module.get("type_info", {}))
+            )
+        except ValueError as e:
+            raise ValueError(
+                f"Failed to process module {module['name']}: {str(e)}"
+            ) from e
 
     def _format_imports(self, imports: list, package_name: str) -> str:
         """Format imports using actual package context"""
         categorized = {"stdlib": [], "internal": [], "external": []}
+        
+        # Add cross-references first
+        for ref in self.current_module.get("type_info", {}).get("cross_references", []):
+            categorized["internal"].append(f"- [[{ref}]]")
 
+        # Then process regular imports
         for imp in imports:
-            # Handle test data format
             if isinstance(imp, str):
                 imp = {"name": imp, "full_path": imp, "source": ""}
             
@@ -135,44 +149,31 @@ class MystWriter:
 
         return "\n".join(structure)
 
-    def _format_api_reference(self, types: Dict[str, Any]) -> str:
-        """Format functions and classes with cross-references and docstrings"""
+    def _format_api_reference(self, types: dict) -> str:
+        """Format functions and classes with cross-references"""
         sections = []
         
-        # Handle classes and their methods
-        for cls_name, cls_info in types.get("classes", {}).items():
-            class_doc = [
-                f"## {cls_name}",
-                f"[[{cls_name}]]",
-                f"**Description**: {cls_info.get('doc', 'No class documentation')}",
-            ]
-            
-            if cls_info.get("methods"):
-                class_doc.append("\n### Methods")
-                for method, details in cls_info["methods"].items():
-                    signature = self._format_function_signature(details)
-                    class_doc.append(f"- `{method}{signature}`")
-            
-            sections.append("\n".join(class_doc))
-
-        # Handle functions
+        # Handle functions first
         for func_name, func_info in types.get("functions", {}).items():
             signature = self._format_function_signature(func_info)
-            func_doc = [
-                f"## `{func_name}{signature}`",
-                f"**Description**: {func_info.get('doc', 'No function documentation')}",
-            ]
-            sections.append("\n".join(func_doc))
+            sections.append(f"## `{func_name}{signature}`")
+            if func_info.get("doc"):
+                sections.append(f"\n{func_info['doc']}\n")
+
+        # Handle classes 
+        for cls_name, cls_info in types.get("classes", {}).items():
+            class_section = self._format_class(cls_name, cls_info)
+            sections.append(class_section)
         
-        return "\n\n".join(sections) if sections else ""
+        return "\n\n".join(sections)
 
     def _format_metadata(self, package_data: Dict[str, Any]) -> str:
         """Format package metadata with fallback values"""
         return META_TEMPLATE.format(
-            name=package_data.get("name", "Unnamed Package"),
-            version=package_data.get("version", "0.0.0"),
-            author=package_data.get("author", "Unknown Author"),
-            license=package_data.get("license", "Not specified"),
+            name=package_data.get('name', package_data.get('package', 'Unnamed Package')),
+            version=package_data.get('version', '0.0.0'),
+            author=package_data.get('author', 'Unknown Author'),
+            license=package_data.get('license', 'Not specified'),
             dependencies=", ".join(package_data.get("dependencies", ["None"])),
             python_requires=package_data.get("python_requires", "Not specified")
         )
@@ -214,36 +215,26 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with type cross-references"""
-        # Handle both raw AST and serialized formats
+        """Format function signature with validation"""
         args_node = func_info.get('args')
+        
+        if isinstance(args_node, dict):  # Handle serialized arguments
+            args_node = ast.arguments(**args_node)
+        
+        if not isinstance(args_node, (ast.arguments, type(None))):
+            raise ValueError(f"Malformed arguments node: {type(args_node).__name__}")
+        
         returns_node = func_info.get('returns')
+        return_type = ""
         
-        # Add defensive checks for node types
-        if isinstance(args_node, dict):  # Handle serialized format
-            try:
-                args_node = ast.arguments(
-                    posonlyargs=[ast.arg(arg=a['arg']) for a in args_node.get('posonlyargs', [])],
-                    args=[ast.arg(arg=a['arg']) for a in args_node.get('args', [])],
-                    vararg=ast.arg(arg=args_node['vararg']['arg']) if args_node.get('vararg') else None,
-                    kwonlyargs=[ast.arg(arg=a['arg']) for a in args_node.get('kwonlyargs', [])],
-                    kw_defaults=args_node.get('kw_defaults', []),
-                    kwarg=ast.arg(arg=args_node['kwarg']['arg']) if args_node.get('kwarg') else None,
-                    defaults=args_node.get('defaults', [])
-                )
-            except KeyError as e:
-                raise ValueError(f"Malformed arguments node: {e}") from e
-            
-        if isinstance(returns_node, dict):  # Handle serialized format
-            returns_node = ast.parse(returns_node['value']).body[0].value if returns_node else None
-        
-        # Handle type constants directly
         if isinstance(returns_node, ast.Constant) and isinstance(returns_node.value, type):
-            returns_node = ast.Name(id=returns_node.value.__name__)
+            return_type = returns_node.value.__name__
+        elif returns_node:
+            return_type = get_annotation(returns_node, self.config)
         
         return format_function_signature(
             args=args_node,
-            returns=returns_node,
+            returns=return_type,  # Pass the processed return type
             config=self.config
         )
 
@@ -300,8 +291,21 @@ class MystWriter:
             for example in module['examples']:
                 content.append(f"```python\n{example['content']}\n```\n")
         
-        # Add API reference section
-        if module.get('type_info'):
+        # Add variables section before API Reference
+        if module.get('type_info', {}).get('variables'):
+            content.append("\n### Variables\n")
+            content.append("\n".join(
+                f"- `{var}`: {info.get('value')}"
+                for var, info in module['type_info']['variables'].items()
+            ))
+        
+        # Only add API Reference if we have classes/functions
+        has_api_content = any(
+            module['type_info'].get(k) 
+            for k in ("classes", "functions")
+        ) if module.get('type_info') else False
+        
+        if has_api_content:
             content.append("\n## API Reference\n")
             content.append(self._format_api_reference(module['type_info']))
         
@@ -323,3 +327,23 @@ class MystWriter:
                     if method_info.get('docstring'):
                         output.append(f"\n{method_info['docstring']}\n")
         return "\n".join(output)
+
+    def _format_class(self, cls_name: str, cls_info: dict) -> str:
+        """Format class documentation with methods"""
+        content = [f"## {cls_name}"]  # Header without cross-reference
+        content.append(f"[[{cls_name}]]\n")  # Add cross-reference as separate line
+        if cls_info.get("doc"):
+            content.append(f"\n{cls_info['doc']}\n")
+        
+        if cls_info.get("methods"):
+            content.append("### Methods")
+            for method_name, method_info in cls_info["methods"].items():
+                try:
+                    signature = self._format_function_signature(method_info)
+                    content.append(f"#### `{method_name}{signature}`")
+                    if method_info.get("doc"):
+                        content.append(f"\n{method_info['doc']}\n")
+                except Exception as e:
+                    raise ValueError(f"Error formatting method {method_name}") from e
+        
+        return "\n".join(content)

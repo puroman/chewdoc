@@ -342,6 +342,11 @@ def download_pypi_package(name: str, version: str = None) -> Path:
 
 def generate_docs(package_info: dict, output_path: Path, verbose: bool = False) -> None:
     """Generate documentation from analyzed package data"""
+    # Ensure modules have basic structure
+    package_info["modules"] = [
+        m if isinstance(m, dict) else {"name": str(m)} 
+        for m in package_info.get("modules", [])
+    ]
     formatter = MystWriter(config=package_info.get("config"))
     formatter.generate(package_info, output_path, verbose=verbose)
 
@@ -476,54 +481,51 @@ def _get_return_type(returns: ast.AST, config: ChewdocConfig) -> str:
     return get_annotation(returns, config) if returns else "Any"
 
 
-def _get_package_name(path: Path) -> str:
-    """Safer package name extraction from path"""
-    try:
-        match = re.search(r"([a-zA-Z0-9_\-]+)-\d+\.\d+\.\d+", path.name)
-        return match.group(1) if match else path.stem
-    except AttributeError:
-        return path.stem
+def _get_package_name(path_part: Path) -> str:
+    """Extract clean package name from path component"""
+    # Convert string parts to Path objects
+    if isinstance(path_part, str):
+        path_part = Path(path_part)
+    name = path_part.stem if path_part.suffix == ".py" else path_part.name
+    return re.split(r"[-_]v?\d+(?:\.\d+)*", name, maxsplit=1)[0]
 
 
-def find_python_packages(
-    path: Path, config: Optional[ChewdocConfig] = None
-) -> Dict[str, Dict]:
-    """Discover Python packages with configurable exclusion patterns"""
-    config = config or load_config()
-    packages = defaultdict(dict)
-    seen_modules = set()
-
-    def _is_excluded(file_path: Path) -> bool:
-        """Check if path matches any exclusion pattern"""
-        rel_path = file_path.relative_to(path)
-        return any(
-            fnmatch.fnmatch(str(part), pattern)
-            for part in rel_path.parts
-            for pattern in config.exclude_patterns
-        ) or any(
-            fnmatch.fnmatch(str(rel_path), pattern)
-            for pattern in config.exclude_patterns
-        )
-
-    for py_file in path.rglob("*.py"):
-        if _is_excluded(py_file) or py_file.name.startswith("__"):
-            continue
+def find_python_packages(root_dir: Path) -> Dict[str, dict]:
+    """Find Python packages including namespace packages"""
+    packages = {}
+    for dirpath in root_dir.glob("**/"):
+        if dirpath.is_dir():
+            rel_path = dirpath.relative_to(root_dir)
+            # Filter out versioned directory names before processing
+            clean_parts = []
+            for part in rel_path.parts:
+                if re.search(r"[-_]v?\d+(\.\d+)+$", part):
+                    continue  # Skip versioned directories
+                clean_parts.append(_get_package_name(Path(part)))
             
-        # Handle both regular and namespace packages
-        try:
-            module_name = _get_module_name(py_file, path)
-        except ValueError:
-            continue
-            
-        if module_name not in seen_modules:
-            packages[module_name] = {
-                "name": module_name,
-                "path": str(py_file),
-                "is_package": "__init__.py" in py_file.name
-            }
-            seen_modules.add(module_name)
+            pkg_name = ".".join(clean_parts)
+            if not pkg_name or any(p in packages for p in dirpath.parents):
+                continue
+                
+            if (dirpath / "__init__.py").exists() or is_namespace_package(dirpath):
+                packages[pkg_name] = {
+                    "name": pkg_name,
+                    "path": str(dirpath),
+                    "is_package": True,
+                    "is_namespace": is_namespace_package(dirpath)
+                }
+    return packages
 
-    return dict(packages)
+
+def is_namespace_package(dirpath: Path) -> bool:
+    """Check if directory is a namespace package"""
+    # Check parent directories for namespace markers
+    for parent in dirpath.parents:
+        init_file = parent / "__init__.py"
+        if init_file.exists() and "pkgutil" in init_file.read_text():
+            return True
+    # Check for PEP 420 namespace (no __init__.py)
+    return not any(f.name == "__init__.py" for f in dirpath.glob("**/*"))
 
 
 def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:

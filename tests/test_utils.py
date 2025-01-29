@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 import ast
 from src.chewdoc.config import ChewdocConfig
-from src.chewdoc.utils import format_function_signature, extract_constant_values
+from src.chewdoc.utils import format_function_signature, extract_constant_values, validate_ast
 
 def test_safe_write(tmp_path):
     test_file = tmp_path / "test.txt"
@@ -36,3 +36,15 @@ def test_extract_constant_values():
     constants = extract_constant_values(node)
     assert ("MAX_LENGTH", "100") in constants
     assert ("API_URL", "'https://example.com'") in constants 
+
+def test_validate_ast_invalid_nodes():
+    """Test AST validation with problematic nodes"""
+    bad_node = ast.Module(body=[{"not": "a-node"}])
+    with pytest.raises(ValueError) as excinfo:
+        validate_ast(bad_node, Path("bad.py"))
+    assert "invalid node types" in str(excinfo.value).lower()
+
+def test_validate_ast_empty_with_docstring():
+    """Test module with only a docstring"""
+    node = ast.parse('"Module docstring"')
+    validate_ast(node, Path("doconly.py"))  # Should not raise 

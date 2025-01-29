@@ -1,6 +1,7 @@
 from src.chewdoc.formatters.myst_writer import MystWriter
 from pathlib import Path
 import ast
+import pytest
 
 def test_myst_writer_basic(tmp_path):
     writer = MystWriter()
@@ -64,3 +65,41 @@ def test_myst_writer_complex_module(tmp_path):
     assert "### Methods" in content
     assert "## `test_func(param) -> str`" in content
     assert "[[TestClass]]" in content
+
+def test_myst_writer_minimal_module(tmp_path):
+    """Test module with minimal content"""
+    writer = MystWriter()
+    package_info = {
+        "package": "testpkg",
+        "modules": [{
+            "name": "bare_module",
+            "docstrings": {},
+            "type_info": {
+                "variables": {"MAX_LIMIT": {"value": 100}},
+                "cross_references": []
+            }
+        }]
+    }
+    writer.generate(package_info, tmp_path)
+    content = (tmp_path / "bare_module.md").read_text()
+    assert "## API Reference" not in content
+    assert "MAX_LIMIT" in content
+
+def test_myst_writer_error_handling(tmp_path):
+    """Test malformed AST data handling"""
+    writer = MystWriter()
+    package_info = {
+        "package": "testpkg",
+        "modules": [{
+            "name": "broken_mod",
+            "type_info": {
+                "functions": {
+                    "bad_func": {"args": "not-an-ast-node"}
+                }
+            }
+        }]
+    }
+    
+    with pytest.raises(ValueError) as excinfo:
+        writer.generate(package_info, tmp_path)
+    assert "Malformed arguments node" in str(excinfo.value)

@@ -1,6 +1,6 @@
 import ast
 from pathlib import Path
-from src.chewdoc.core import _find_imports, _get_module_name, analyze_package
+from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
@@ -135,3 +135,18 @@ def test_analyze_syntax_error(tmp_path):
     with pytest.raises(ValueError) as exc_info:
         analyze_package(source=str(tmp_path), is_local=True)
     assert "Syntax error" in str(exc_info.value)
+
+def test_find_python_packages_namespace(tmp_path):
+    """Test namespace package detection"""
+    pkg_path = tmp_path / "ns_pkg-1.2.3" / "ns_pkg" / "sub"
+    pkg_path.mkdir(parents=True)
+    (pkg_path / "__init__.py").write_text("")
+    
+    packages = find_python_packages(tmp_path)
+    assert "ns_pkg.sub" in packages
+    assert packages["ns_pkg.sub"]["is_package"] is True
+
+def test_get_package_name_versioned():
+    """Test version-stripping in package names"""
+    path = Path("/path/to/my-pkg-1.2.3")
+    assert _get_package_name(path) == "my-pkg"
