@@ -9,7 +9,7 @@ from .relationships import analyze_relationships
 from .ast_utils import extract_docstrings, extract_type_info
 from .config import ChewdocConfig
 from .utils import find_usage_examples, extract_constant_values, validate_ast
-from .package_discovery import find_python_packages, _get_package_name, _is_namespace_package
+from .package_discovery import find_python_packages, get_package_name, _is_namespace_package
 
 logger = logging.getLogger(__name__)
 

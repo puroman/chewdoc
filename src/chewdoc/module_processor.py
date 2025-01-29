@@ -15,23 +15,46 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
     for file_path in package_path.rglob("*.py"):
         if _is_excluded(file_path, config.exclude_patterns):
             continue
-        if module_data := _create_module_data(file_path, package_path, config):
-            modules.append(module_data)
+        
+        try:
+            module_data = _create_module_data(file_path, package_path, config)
+            if module_data:
+                modules.append(module_data)
+        except SyntaxError as e:
+            logger.warning(f"Skipping {file_path} due to syntax error: {e}")
+        except Exception as e:
+            logger.warning(f"Error processing {file_path}: {e}")
+    
     return modules
 
 def _create_module_data(file_path: Path, package_path: Path, config: ChewdocConfig) -> dict | None:
+    """Create module data with robust error handling."""
     try:
         with open(file_path, "r") as f:
-            ast_tree = ast.parse(f.read())
+            file_content = f.read()
+            
+        # Validate syntax before parsing
+        try:
+            ast_tree = ast.parse(file_content)
+        except SyntaxError as e:
+            logger.warning(f"Syntax error in {file_path}: {e}")
+            return None
+        
+        # Validate module name
+        module_name = _get_module_name(file_path, package_path)
+        if not module_name:
+            logger.warning(f"Could not determine module name for {file_path}")
+            return None
+        
         return {
-            "name": _get_module_name(file_path, package_path),
+            "name": module_name,
             "path": str(file_path),
             "ast": ast_tree,
             "internal_deps": _find_internal_deps(ast_tree, package_path.name),
             "imports": _find_imports(ast_tree, package_path.name)
         }
-    except SyntaxError as e:
-        logger.warning(f"Skipping {file_path} due to syntax error: {e}")
+    except Exception as e:
+        logger.warning(f"Error processing module {file_path}: {e}")
         return None
 
 def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
@@ -42,12 +65,31 @@ def _get_module_name(file_path: Path, package_root: Path) -> str:
     return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
 
 def _find_internal_deps(ast_tree: ast.Module, package_name: str) -> List[str]:
-    # Implementation of _find_internal_deps function
-    pass
+    """Find internal dependencies within the package."""
+    internal_deps = []
+    
+    class InternalDependencyVisitor(ast.NodeVisitor):
+        def visit_Import(self, node):
+            for alias in node.names:
+                if alias.name.startswith(package_name):
+                    internal_deps.append(alias.name)
+        
+        def visit_ImportFrom(self, node):
+            if node.module and node.module.startswith(package_name):
+                internal_deps.append(node.module)
+    
+    visitor = InternalDependencyVisitor()
+    visitor.visit(ast_tree)
+    
+    return list(set(internal_deps))
 
 def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
-    """Analyze import statements with dependency classification."""
+    """Analyze import statements with robust dependency classification."""
     imports = []
+    stdlib_modules = {
+        "sys", "os", "re", "math", "datetime", "json", 
+        "pathlib", "typing", "collections", "itertools"
+    }
 
     class ImportVisitor(ast.NodeVisitor):
         def visit_Import(self, node):
@@ -62,16 +104,19 @@ def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
 
         def _add_import(self, full_path: str, root_module: Optional[str]):
             import_type = "external"
-            if full_path.startswith(package_name):
+            first_part = full_path.split('.')[0]
+            
+            # Classify import type
+            if first_part == package_name or full_path.startswith(f"{package_name}."):
                 import_type = "internal"
-            elif root_module and root_module in stdlib_modules:
+            elif first_part in stdlib_modules:
                 import_type = "stdlib"
             
             imports.append({
                 "full_path": full_path,
                 "name": full_path.split(".")[-1],
                 "type": import_type,
-                "source": full_path.split(".", 1)[0]
+                "source": first_part
             })
 
     ImportVisitor().visit(ast_tree)

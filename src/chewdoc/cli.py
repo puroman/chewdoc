@@ -18,23 +18,32 @@ def cli():
 
 
 @cli.command()
-@click.argument("source", default=".")
+@click.argument("source", default=None, required=False)
 @click.option("--version", help="Package version")
 @click.option("--local", is_flag=True, help="Local package")
+@click.option("--pypi", is_flag=True, help="PyPI package")
 @click.option("--output", "-o", default="docs", help="Output directory")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed progress")
-def chew(source, version, local, output, verbose):
-    """Main command implementation"""
+def chew(source, version, local, pypi, output, verbose):
+    """Generate documentation for a Python package."""
     start_time = datetime.now()
 
-    # Simplified source type validation
-    if not local:
-        raise click.UsageError("Remote package analysis not implemented yet")
+    # Validate source type
+    if not local and not pypi:
+        raise click.UsageError("Must specify --local or --pypi")
+    
+    # Validate source argument
+    if source is None:
+        if not local:
+            raise click.UsageError("Missing argument 'SOURCE'")
+        source = "."
+    
+    # Validate output directory
+    output_path = Path(output)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     # Actual processing logic
     try:
-        output_path = Path(output)
-        output_path.mkdir(parents=True, exist_ok=True)
         result = analyze_package(
             source=source, version=version, is_local=local, verbose=verbose
         )

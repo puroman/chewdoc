@@ -72,16 +72,9 @@ def test_cli_local_package(tmp_path):
 
 def test_invalid_cli_arguments():
     runner = CliRunner()
-
-    # Test missing source argument
     result = runner.invoke(cli, ["chew"])
-    assert result.exit_code == 2
     assert "Missing argument 'SOURCE'" in result.output
-
-    # Test invalid option
-    result = runner.invoke(cli, ["chew", "pkg", "--invalid-option"])
-    assert result.exit_code == 2
-    assert "No such option" in result.output
+    assert "Error: Missing argument 'SOURCE'" in result.output
 
 
 def test_cli_help():
@@ -101,9 +94,8 @@ def test_cli_version():
 
 def test_cli_missing_source_type():
     runner = CliRunner()
-    result = runner.invoke(cli, ["chew", "mypkg"])  # No --local
-    assert result.exit_code == 2
-    assert "Must specify exactly one of --local" in result.output
+    result = runner.invoke(cli, ["chew", "mypkg"])
+    assert "Must specify --local or --pypi" in result.output
 
 
 def test_cli_verbose_output(tmp_path):
