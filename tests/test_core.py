@@ -158,10 +158,10 @@ def test_find_python_packages_namespace(tmp_path):
     assert any(p["name"] == "ns_pkg.sub" for p in packages)
 
 
-def test_get_package_name_versioned():
-    """Test version-stripping in package names"""
-    path = Path("/path/to/my-pkg-1.2.3")
-    assert _get_package_name(path) == "my-pkg"
+def test_get_package_name_versioned(tmp_path):
+    versioned_path = tmp_path / "my-pkg-1.2.3" / "src" / "my_pkg"
+    versioned_path.mkdir(parents=True)
+    assert _get_package_name(versioned_path) == "my-pkg"
 
 
 def test_is_namespace_package(tmp_path):
