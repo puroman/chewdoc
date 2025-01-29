@@ -151,3 +151,13 @@ def extract_constant_values(node: ast.AST) -> List[Tuple[str, str]]:
                     value = ast.unparse(stmt.value).strip()
                     constants.append((target.id, value))
     return constants
+
+
+def safe_write(path: Path, content: str, mode: str = "w", overwrite: bool = False) -> None:
+    """Atomic file write with directory creation"""
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"File already exists: {path}")
+        
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, mode) as f:
+        f.write(content)

@@ -7,6 +7,7 @@ from chewdoc.config import ChewdocConfig
 import ast
 import click
 import fnmatch
+import re
 
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
 
@@ -21,23 +22,32 @@ class MystWriter:
         """Generate structured MyST documentation with separate files"""
         if not package_data or "modules" not in package_data:
             raise ValueError("Invalid package data")
-            
-        # Ensure required fields exist
+        
+        # Ensure required fields with safe defaults
         package_data.setdefault("name", "Unknown Package")
+        package_data.setdefault("package", package_data["name"])
         package_data.setdefault("version", "0.0.0")
         package_data.setdefault("author", "Unknown")
         package_data.setdefault("license", "Not specified")
         package_data.setdefault("python_requires", ">=3.6")
-        package_data.setdefault("package", package_data["name"])
         
-        self.package_data = package_data  # Store for module formatting
+        # Handle directory output path
+        output_dir = output_path if output_path.is_dir() else output_path.parent
         
-        # Create output directory if needed
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Generate content
-        content = self._format_package_index(package_data)
-        output_path.write_text(content)
+        # Store package data and generate content
+        self.package_data = package_data
+        
+        # Generate module files
+        for module in package_data["modules"]:
+            module_file = output_dir / f"{module['name']}.md"
+            content = self._format_module(module)
+            module_file.write_text(content)
+
+        # Generate index file
+        index_content = self._format_package_index(package_data)
+        (output_dir / "index.md").write_text(index_content)
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
@@ -50,6 +60,7 @@ class MystWriter:
         
         for module in package_data["modules"]:
             module.setdefault("internal_deps", [])
+            content.append(f"## {module['name']}\n")
             content.append(self._format_module_content(module))
             
         return "\n".join(content)
@@ -61,12 +72,14 @@ class MystWriter:
             package=self.package_data["package"],
             role_section=self._format_role(module),
             layer_section=self._format_architecture_layer(module),
-            description=module.get("description") or infer_responsibilities(module),
+            imports_section=self._format_imports(module.get("imports", []), self.package_data["package"]),
+            description=self._get_module_description(module),
             dependencies=self._format_dependencies(module["internal_deps"]),
             usage_examples=self._format_usage_examples(
                 module.get("examples", []), 
                 config=self.config
             ),
+            api_reference=self._format_api_reference(module.get("type_info", {}))
         )
 
     def _format_imports(self, imports: list, package_name: str) -> str:
@@ -74,12 +87,16 @@ class MystWriter:
         categorized = {"stdlib": [], "internal": [], "external": []}
 
         for imp in imports:
+            # Handle test data format
+            if isinstance(imp, str):
+                imp = {"name": imp, "full_path": imp, "source": ""}
+            
             entry = f"`{imp['name']}`"
-            if imp["source"]:
+            if imp.get("source"):
                 entry += f" from `{imp['source']}`"
 
             if imp["full_path"].startswith(f"{package_name}."):
-                categorized["internal"].append(f"- [[{imp['full_path']}|{entry}]")
+                categorized["internal"].append(f"- [[{imp['full_path']}|{entry}]]")
             elif "." not in imp["full_path"]:
                 categorized["stdlib"].append(f"- {entry}")
             else:
@@ -87,19 +104,13 @@ class MystWriter:
 
         sections = []
         if categorized["stdlib"]:
-            sections.append(
-                "### Standard Library\n" + "\n".join(sorted(categorized["stdlib"]))
-            )
+            sections.append("### Standard Library\n" + "\n".join(sorted(categorized["stdlib"])))
         if categorized["internal"]:
-            sections.append(
-                "### Internal Dependencies\n" + "\n".join(sorted(categorized["internal"]))
-            )
+            sections.append("### Internal Dependencies\n" + "\n".join(sorted(categorized["internal"])))
         if categorized["external"]:
-            sections.append(
-                "### External Dependencies\n" + "\n".join(sorted(categorized["external"]))
-            )
-
-        return "\n\n".join(sections) or "No imports found"
+            sections.append("### External Dependencies\n" + "\n".join(sorted(categorized["external"])))
+        
+        return "\n\n".join(sections) if sections else "No imports"
 
     def _format_code_structure(self, ast_data: ast.Module) -> str:
         """Visualize code structure hierarchy"""
@@ -133,31 +144,32 @@ class MystWriter:
             class_doc = [
                 f"## {cls_name}",
                 f"[[{cls_name}]]",
-                cls_info.get("doc", "No class documentation"),
+                f"**Description**: {cls_info.get('doc', 'No class documentation')}",
             ]
 
             if cls_info.get("methods"):
-                class_doc.append("\n**Methods**:")
+                class_doc.append("\n### Methods")
                 for method, details in cls_info["methods"].items():
-                    signature = self._format_function_signature(
-                        details["args"], 
-                        details["returns"]
-                    )
+                    # Safely handle args/returns in test data
+                    args = details.get("args", ast.arguments())
+                    returns = details.get("returns", ast.Name(id="None"))
+                    signature = self._format_function_signature(args, returns)
                     class_doc.append(f"- `{method}{signature}`")
-
+        
         # Handle functions
         for func_name, func_info in types.get("functions", {}).items():
-            signature = self._format_function_signature(
-                func_info["args"], 
-                func_info["returns"]
-            )
+            # Safely handle args/returns in test data
+            args = func_info.get("args", ast.arguments())
+            returns = func_info.get("returns", ast.Name(id="None")) 
+            signature = self._format_function_signature(args, returns)
+            
             func_doc = [
                 f"## `{func_name}{signature}`",
-                func_info.get("doc", "No function documentation"),
+                f"**Description**: {func_info.get('doc', 'No function documentation')}",
             ]
             sections.append("\n".join(func_doc))
-
-        return "\n\n".join(sections) or "No public API elements"
+        
+        return "\n\n".join(sections) if sections else ""
 
     def _format_metadata(self, package_data: Dict[str, Any]) -> str:
         """Format package metadata with fallback values"""
@@ -207,8 +219,12 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, args: ast.arguments, returns: ast.AST) -> str:
-        """Format function signature using shared utility"""
-        return format_function_signature(args, returns, self.config)
+        """Format function signature with type cross-references"""
+        signature = format_function_signature(args, returns, self.config)
+        # Replace all type occurrences including generics
+        for type_name, alias in self.config.known_types.items():
+            signature = re.sub(rf'\b{type_name}\b', f'[{alias}](#{alias.lower()})', signature)
+        return signature
 
     def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
         """Format usage examples section"""
@@ -241,3 +257,27 @@ class MystWriter:
                 except Exception as e:
                     continue
         return docs
+
+    def _get_module_description(self, module: dict) -> str:
+        """Extract module description from docstrings"""
+        if "docstrings" in module and "module:1" in module["docstrings"]:
+            return module["docstrings"]["module:1"]
+        return infer_responsibilities(module)
+
+    def _format_module(self, module: dict) -> str:
+        """Format a single module's documentation"""
+        content = [
+            f"# {module['name']}\n",
+            f"```{{module}} {module['name']}\n"
+        ]
+        
+        if module.get('docstrings'):
+            content.append(f"\n{module['docstrings'].get('module', '')}\n")
+        
+        if module.get('examples'):
+            content.append("\n## Examples\n")
+            for example in module['examples']:
+                content.append(f"```python\n{example['content']}\n```\n")
+        
+        content.append("\n```\n")
+        return "\n".join(content)

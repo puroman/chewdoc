@@ -1,8 +1,9 @@
-from ._version import __version__
+from src.chewdoc._version import __version__
 import click
 from chewdoc.core import analyze_package, generate_docs
 from pathlib import Path
 from datetime import datetime
+import sys
 
 
 @click.group()
@@ -29,26 +30,28 @@ def chew(source, version, local, output, verbose):
     
     # Actual processing logic
     try:
-        package_info = analyze_package(
+        output_path = Path(output)
+        output_path.mkdir(parents=True, exist_ok=True)
+        result = analyze_package(
             source=source,
             version=version,
             is_local=local,
             verbose=verbose
         )
         
-        output_path = Path(output)
-        
         if verbose:
-            total_examples = sum(len(m.get("examples", [])) for m in package_info["modules"])
+            total_examples = sum(len(m.get("examples", [])) for m in result["modules"])
             click.echo(f"📋 Found {total_examples} usage examples across modules")
         
-        generate_docs(package_info, output_path, verbose=verbose)
+        generate_docs(result, output_path, verbose=verbose)
         
         if verbose:
             duration = datetime.now() - start_time
             click.echo(f"⏱️  Documentation chewed in {duration.total_seconds():.3f}s")
             click.echo(f"📂 Output location: {output_path.resolve()}")
+        
+        return 0  # Explicit success return code
 
     except Exception as e:
-        click.echo(f"❌ Error chewing documentation: {str(e)}", err=True)
-        exit(1)
+        click.echo(f"❌ Error: {str(e)}", err=True)
+        sys.exit(1)

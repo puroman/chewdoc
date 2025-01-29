@@ -10,16 +10,16 @@ authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
-    "click>=8.0.3",  # CLI interface and command handling
-    "requests>=2.26.0",  # HTTP requests for PyPI API interactions
-    "tomli>=2.0.1",  # TOML parsing for pyproject.toml files
-    "rich>=12.6.0",  # Enhanced terminal output and formatting
-    "pydantic>=2.5.0"  # Required for config validation
+    "click>=8.0.3", # CLI interface and command handling
+    "requests>=2.26.0", # HTTP requests for PyPI API interactions
+    "tomli>=2.0.1", # TOML parsing for pyproject.toml files
+    "rich>=12.6.0", # Enhanced terminal output and formatting # Required for config validation
+    "pydantic>=2.5.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest >=7.0.1",  # Testing framework
+    "pytest>=8.3.4",
     "pytest-cov >=3.0.0",  # Test coverage reporting
     "flake8 >=4.0.1",  # Linting and code style checking
     "black >=22.3.0"  # Code formatting

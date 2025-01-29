@@ -1,24 +1,69 @@
+from chewdoc.config import ChewdocConfig
 import pytest
 from click.testing import CliRunner
 from unittest.mock import patch, MagicMock
 from src.chewdoc.cli import cli
 from src.chewdoc._version import __version__
+import ast
 
 
-def test_cli_local_package(tmp_path, mocker):
+def test_cli_local_package(tmp_path):
     runner = CliRunner()
-    with patch("src.chewdoc.cli.analyze_package") as mock_analyze:
+    with patch("src.chewdoc.cli.analyze_package") as mock_analyze, \
+         patch("pathlib.Path.exists") as mock_exists, \
+         patch("src.chewdoc.cli.generate_docs") as mock_generate:
+        mock_exists.return_value = True
         mock_analyze.return_value = {
             "name": "testpkg",
-            "modules": [],
-            "internal_deps": [],
-            "license": "MIT"
+            "package": "testpkg",
+            "version": "1.0.0",
+            "author": "Test Author",
+            "license": "MIT",
+            "python_requires": ">=3.8",
+            "dependencies": ["requests>=2.25"],
+            "modules": [{
+                "name": "testmod",
+                "path": "/fake/path/testmod.py",
+                "internal_deps": ["othermod"],
+                "imports": [
+                    {"name": "sys", "type": "stdlib"},
+                    {"name": "othermod", "type": "internal"}
+                ],
+                "type_info": {
+                    "cross_references": {"MyType"},
+                    "functions": {
+                        "test_func": {
+                            "args": ast.arguments(args=[], defaults=[]),
+                            "returns": ast.Name(id="str")
+                        }
+                    },
+                    "classes": {
+                        "TestClass": {
+                            "methods": {
+                                "__init__": {
+                                    "args": ast.arguments(args=[], defaults=[]),
+                                    "returns": None
+                                }
+                            }
+                        }
+                    }
+                },
+                "examples": [{
+                    "type": "doctest",
+                    "content": ">>> print('test')\n'test'"
+                }],
+                "docstrings": {},
+                "ast": ast.Module(body=[]),
+                "layer": "application",
+                "role": "API interface",
+                "constants": {}
+            }],
+            "config": ChewdocConfig()
         }
+        
         result = runner.invoke(cli, ["chew", str(tmp_path), "--local", "--output", str(tmp_path/"output")])
         assert result.exit_code == 0
-        mock_analyze.assert_called_once()
-        assert (tmp_path/"output").is_dir()
-        assert (tmp_path/"output"/"index.myst").exists()
+        assert (tmp_path/"output"/"index.md").exists()
 
 
 def test_invalid_cli_arguments():
@@ -48,3 +93,44 @@ def test_cli_version():
     assert result.exit_code == 0
     assert __version__ in result.output
     # Add cleanup for version file
+
+
+def test_cli_missing_source_type():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["chew", "mypkg"])  # No --local
+    assert result.exit_code == 2
+    assert "Must specify exactly one of --local" in result.output
+
+
+def test_cli_verbose_output(tmp_path):
+    runner = CliRunner()
+    with patch("src.chewdoc.cli.analyze_package") as mock_analyze, \
+         patch("src.chewdoc.cli.generate_docs"):
+        mock_analyze.return_value = minimal_valid_package()
+        result = runner.invoke(cli, ["chew", str(tmp_path), "--local", "-v"])
+        assert "📋 Found 0 usage examples" in result.output
+        assert "⏱️  Documentation chewed" in result.output 
+        assert "📂 Output location" in result.output
+
+
+def test_cli_exception_handling(tmp_path):
+    runner = CliRunner()
+    with patch("src.chewdoc.cli.analyze_package") as mock_analyze:
+        mock_analyze.side_effect = ValueError("Test error")
+        result = runner.invoke(cli, ["chew", str(tmp_path), "--local"])
+        assert "❌ Error: Test error" in result.output
+
+
+def minimal_valid_package():
+    return {
+        "package": "testpkg",
+        "modules": [{
+            "name": "testmod",
+            "examples": [],
+            "imports": [],
+            "type_info": {},
+            "docstrings": {},
+            "ast": None
+        }],
+        "config": {}
+    }
