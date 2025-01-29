@@ -18,22 +18,30 @@ try:
 except ImportError:
     import tomllib as tomli  # Python 3.11+
 from src.chewdoc.formatters.myst_writer import MystWriter
-from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature, extract_constant_values
+from chewdoc.utils import (
+    get_annotation,
+    infer_responsibilities,
+    validate_ast,
+    find_usage_examples,
+    format_function_signature,
+    extract_constant_values,
+)
 import fnmatch
 from chewdoc.constants import AST_NODE_TYPES
 from chewdoc.config import ChewdocConfig, load_config
 
 logger = logging.getLogger(__name__)
 
+
 def analyze_package(
     source: str,
     is_local: bool = True,
     version: Optional[str] = None,
     config: Optional[ChewdocConfig] = None,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> Dict[str, Any]:
     """Analyze Python package and extract documentation metadata.
-    
+
     Example:
         >>> from chewdoc.core import analyze_package
         >>> result = analyze_package("requests", is_local=False)
@@ -45,9 +53,11 @@ def analyze_package(
             path = Path(source).resolve()
             if not path.exists():
                 raise ValueError(f"Invalid source path: {source}")
-                
-            if not path.is_dir() and not (path.is_file() and path.suffix == '.py'):
-                raise ValueError("Local package path must be a directory or a Python file")
+
+            if not path.is_dir() and not (path.is_file() and path.suffix == ".py"):
+                raise ValueError(
+                    "Local package path must be a directory or a Python file"
+                )
         else:
             # For PyPI packages, we'll download and process them later
             path = Path(source)
@@ -87,46 +97,48 @@ def analyze_package(
 
         package_info["modules"] = []
         processed = 0
-        
+
         if is_local and module_path.is_file():
             # Handle single file case
             module_data = {
                 "name": module_path.stem,
                 "path": str(module_path),
                 "internal_deps": [],
-                "imports": []
+                "imports": [],
             }
             module_paths = [module_data]
         else:
             # Handle directory case
             module_paths = process_modules(package_path, config)
-            
+
         total_modules = len(module_paths)
-        
+
         if not module_paths:
             raise ValueError("No valid modules found in package")
-        
+
         for module_data in module_paths:
             processed += 1
             module_name = module_data["name"]
             module_path = Path(module_data["path"])
-            
+
             if module_path.name == "__init__.py" and module_path.stat().st_size == 0:
                 if verbose:
                     click.echo(f"⏭️  Skipping empty __init__.py: {module_path}")
                 continue
-            
+
             if verbose:
-                click.echo(f"🔄 Processing ({processed}/{total_modules}): {module_name}")
-            
+                click.echo(
+                    f"🔄 Processing ({processed}/{total_modules}): {module_name}"
+                )
+
             with open(module_path, "r") as f:
                 try:
                     module_ast = ast.parse(f.read())
                 except SyntaxError as e:
                     raise ValueError(f"Syntax error in {module_path}: {e}") from e
-            
+
             validate_ast(module_ast, module_path)
-            
+
             module_info = {
                 "name": module_name,
                 "path": str(module_path),
@@ -140,18 +152,19 @@ def analyze_package(
                 },
                 "examples": find_usage_examples(module_ast),
                 "imports": _find_imports(module_ast, package_name),
-                "internal_deps": module_data.get("internal_deps", [])
+                "internal_deps": module_data.get("internal_deps", []),
             }
-            
+
             for imp in module_info["imports"]:
                 package_info["imports"][imp["full_path"]].append(module_name)
-            
+
             internal_imports = [
-                imp["full_path"] for imp in module_info["imports"]
+                imp["full_path"]
+                for imp in module_info["imports"]
                 if imp["type"] == "internal"
             ]
             module_info["internal_deps"] = list(set(internal_imports))
-            
+
             package_info["modules"].append(module_info)
 
         relationships = _analyze_relationships(package_info["modules"], package_name)
@@ -173,7 +186,7 @@ def analyze_package(
 
 def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     """Process Python modules in package directory.
-    
+
     Example test case:
     ```python
     def test_module_processing():
@@ -183,19 +196,25 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     """
     modules = []
     module_names = set()
-    
+
     for file_path in package_path.rglob("*.py"):
-        if any(fnmatch.fnmatch(part, pattern) for part in file_path.parts for pattern in config.exclude_patterns):
+        if any(
+            fnmatch.fnmatch(part, pattern)
+            for part in file_path.parts
+            for pattern in config.exclude_patterns
+        ):
             continue
         module_name = _get_module_name(file_path, package_path)
         module_names.add(module_name)
-        modules.append({
-            "name": module_name,
-            "path": str(file_path),
-            "ast": parse_ast(file_path),
-            "internal_deps": set(),
-            "imports": [],
-        })
+        modules.append(
+            {
+                "name": module_name,
+                "path": str(file_path),
+                "ast": parse_ast(file_path),
+                "internal_deps": set(),
+                "imports": [],
+            }
+        )
 
     for module in modules:
         all_imports = _find_imports(module["ast"], package_path.name)
@@ -207,7 +226,7 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
                     if candidate in module_names and candidate != module["name"]:
                         module["internal_deps"].add(candidate)
                         break
-        
+
         module["internal_deps"] = sorted(module["internal_deps"])
         module["imports"] = all_imports
 
@@ -216,7 +235,7 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
 
 def parse_ast(file_path: Path) -> ast.AST:
     """Parse Python file to AST.
-    
+
     Example:
         >>> ast = parse_ast(Path("module.py"))
         >>> isinstance(ast, ast.AST)
@@ -281,7 +300,9 @@ def get_local_metadata(path: Path) -> dict:
                 "version": pyproject_data.get("version", metadata["version"]),
                 "author": pyproject_data.get("author", metadata["author"]),
                 "license": pyproject_data.get("license", metadata["license"]),
-                "python_requires": pyproject_data.get("python_requires", metadata["python_requires"]),
+                "python_requires": pyproject_data.get(
+                    "python_requires", metadata["python_requires"]
+                ),
             }
         )
     except FileNotFoundError:
@@ -292,7 +313,7 @@ def get_local_metadata(path: Path) -> dict:
 
 def get_pypi_metadata(name: str, version: Optional[str]) -> Dict[str, Any]:
     """Retrieve PyPI package metadata.
-    
+
     Example:
         >>> metadata = get_pypi_metadata("requests", "2.28.0")
         >>> print(metadata["name"])
@@ -318,7 +339,9 @@ def get_package_path(source: Path, is_local: bool) -> Path:
     if is_local:
         return source
     # Use modern metadata API
-    return Path(importlib.metadata.distribution(source.name)._path)  # Access private _path
+    return Path(
+        importlib.metadata.distribution(source.name)._path
+    )  # Access private _path
 
 
 def parse_pyproject(path: Path) -> dict:
@@ -364,8 +387,15 @@ def download_pypi_package(name: str, version: str = None) -> Path:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_dir_str = str(tmp_dir)  # Convert Path to string
             subprocess.run(
-                ["pip", "download", "--no-deps", "-d", tmp_dir_str, f"{source}=={version}"],
-                check=True
+                [
+                    "pip",
+                    "download",
+                    "--no-deps",
+                    "-d",
+                    tmp_dir_str,
+                    f"{source}=={version}",
+                ],
+                check=True,
             )
             tmp_path = Path(tmp_dir)  # Now safe to convert
 
@@ -374,7 +404,7 @@ def generate_docs(package_info: dict, output_path: Path, verbose: bool = False) 
     """Generate documentation from analyzed package data"""
     # Ensure modules have basic structure
     package_info["modules"] = [
-        m if isinstance(m, dict) else {"name": str(m)} 
+        m if isinstance(m, dict) else {"name": str(m)}
         for m in package_info.get("modules", [])
     ]
     formatter = MystWriter(config=package_info.get("config"))
@@ -391,28 +421,28 @@ def _find_imports(node: ast.AST, package_name: str) -> List[Dict]:
     """Find imports with proper relative import handling"""
     imports = []
     stdlib_modules = sys.stdlib_module_names
-    
+
     for stmt in ast.walk(node):
         if isinstance(stmt, (ast.Import, ast.ImportFrom)):
             for alias in stmt.names:
                 full_path = alias.name
                 if isinstance(stmt, ast.ImportFrom) and stmt.module:
                     full_path = f"{stmt.module}.{alias.name}"
-                
-                root_module = full_path.split('.')[0]
+
+                root_module = full_path.split(".")[0]
                 import_type = "external"
-                
+
                 if root_module in stdlib_modules:
                     import_type = "stdlib"
                 elif full_path.startswith(package_name):
                     import_type = "internal"
-                    full_path = full_path[len(package_name)+1:]  # Strip package prefix
+                    full_path = full_path[
+                        len(package_name) + 1 :
+                    ]  # Strip package prefix
 
-                imports.append({
-                    "name": alias.name,
-                    "full_path": full_path,
-                    "type": import_type
-                })
+                imports.append(
+                    {"name": alias.name, "full_path": full_path, "type": import_type}
+                )
     return imports
 
 
@@ -495,13 +525,15 @@ def extract_type_info(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
     return type_info
 
 
-def _get_arg_types(args: Optional[ast.arguments], config: ChewdocConfig) -> Dict[str, str]:
+def _get_arg_types(
+    args: Optional[ast.arguments], config: ChewdocConfig
+) -> Dict[str, str]:
     """Extract argument types from a function definition."""
     arg_types = {}
-    if not args or not hasattr(args, 'args'):
+    if not args or not hasattr(args, "args"):
         return arg_types
-    for arg in getattr(args, 'args', []):
-        if hasattr(arg, 'annotation') and arg.annotation:
+    for arg in getattr(args, "args", []):
+        if hasattr(arg, "annotation") and arg.annotation:
             arg_types[arg.arg] = get_annotation(arg.annotation, config)
     return arg_types
 
@@ -515,18 +547,18 @@ def _get_package_name(package_path: Path) -> str:
     """Extract package name from path, handling versioned directories"""
     # Convert path to string and split into parts
     path_str = str(package_path)
-    parts = path_str.split('/')
-    
+    parts = path_str.split("/")
+
     # Remove empty parts and handle absolute paths
     parts = [p for p in parts if p]
-    
+
     # Look for version pattern in parts
     for part in parts:
         # Match version patterns like v1.2.3 or -1.2.3
-        if re.search(r'-\d+\.\d+\.\d+', part):
+        if re.search(r"-\d+\.\d+\.\d+", part):
             # Split on version number and return the base name
-            return re.split(r'-\d+\.\d+\.\d+', part)[0]
-            
+            return re.split(r"-\d+\.\d+\.\d+", part)[0]
+
     # If no version pattern found, return the last part
     return parts[-1] if parts else ""
 
@@ -539,40 +571,45 @@ def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
 def find_python_packages(path: Path, config: ChewdocConfig) -> List[dict]:
     """Find Python packages in directory with version pattern support"""
     packages = []
-    
+
     for p in path.glob("**/"):
         if not p.is_dir() or _is_excluded(p, config.exclude_patterns):
             continue
-            
-        # Handle versioned directories (my_pkg-1.2.3)
-        if re.search(r'\d+\.\d+\.\d+', p.name):
-            base_name = re.split(r'-\d+\.\d+\.\d+', p.name)[0]
+
+        # Find the versioned directory in the path (if any)
+        versioned_dir = next(
+            (d for d in [p, *p.parents] if re.search(r"-v?\d+\.\d+\.\d+", d.name)), None
+        )
+
+        if versioned_dir:
+            # Get base name from versioned directory
+            base_name = re.split(r"-v?\d+\.\d+\.\d+", versioned_dir.name)[0]
+
             # Get relative path after the versioned directory
-            versioned_dir = next((d for d in p.parents if re.search(r'\d+\.\d+\.\d+', d.name)), None)
-            if versioned_dir:
-                try:
-                    rel_path = p.relative_to(versioned_dir)
-                    if str(rel_path) != '.':
-                        package_name = f"{base_name}.{str(rel_path).replace('/', '.')}"
-                    else:
-                        package_name = base_name
-                except ValueError:
-                    package_name = base_name
-            else:
+            try:
+                rel_path = p.relative_to(versioned_dir.parent)
+                parts = str(rel_path).split("/")
+                # Skip the versioned directory itself
+                if parts[0] == versioned_dir.name:
+                    parts = parts[1:]
+                # Skip redundant package name if it matches base_name
+                if parts and parts[0] == base_name:
+                    package_name = ".".join([base_name] + parts[1:])
+                else:
+                    package_name = ".".join([base_name] + parts)
+            except ValueError:
                 package_name = base_name
         else:
             # Get the package name including parent directories
             rel_path = p.relative_to(path)
-            package_name = str(rel_path).replace('/', '.')
-            
+            package_name = str(rel_path).replace("/", ".")
+
         # Check for valid package structure
         if (p / "__init__.py").exists():
-            packages.append({
-                "name": package_name,
-                "path": str(p.resolve()),
-                "modules": []
-            })
-    
+            packages.append(
+                {"name": package_name, "path": str(p.resolve()), "modules": []}
+            )
+
     return packages
 
 
@@ -588,7 +625,7 @@ def is_namespace_package(dirpath: Path) -> bool:
             # Not empty init file means regular package
             if len(content.strip()) > 0:
                 return False
-    
+
     # PEP 420 namespace (no __init__.py in directory or parents)
     return not any(f.name == "__init__.py" for f in dirpath.glob("**/*"))
 
@@ -624,25 +661,29 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
 def _find_usage_examples(node: ast.AST) -> list:
     """Extract usage examples with improved pattern matching."""
     examples = []
-    
+
     for n in ast.walk(node):
         if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.Module)):
             docstring = ast.get_docstring(n, clean=False)  # Keep original formatting
             if docstring:
                 # Find all indented code blocks
                 code_blocks = re.findall(
-                    r'^(?:>>>|\.\.\.|Example:|Usage:)(\n\s+.*?)+?(?=\n\S|\Z)',
+                    r"^(?:>>>|\.\.\.|Example:|Usage:)(\n\s+.*?)+?(?=\n\S|\Z)",
                     docstring,
-                    re.MULTILINE | re.DOTALL
+                    re.MULTILINE | re.DOTALL,
                 )
-                
+
                 for block in code_blocks:
-                    examples.append({
-                        "type": "doctest",
-                        "code": textwrap.dedent(block[0]).strip(),
-                        "context": f"In {n.name}" if hasattr(n, 'name') else "Module-level",
-                        "line": n.lineno
-                    })
+                    examples.append(
+                        {
+                            "type": "doctest",
+                            "code": textwrap.dedent(block[0]).strip(),
+                            "context": (
+                                f"In {n.name}" if hasattr(n, "name") else "Module-level"
+                            ),
+                            "line": n.lineno,
+                        }
+                    )
                     logger.debug(f"📝 Found example in {n.name} at line {n.lineno}")
 
     return examples
@@ -690,7 +731,13 @@ def _analyze_relationships(modules: list, package_name: str) -> dict:
     return {
         "dependency_graph": {k: sorted(v) for k, v in relationship_map.items()},
         "reverse_dependencies": {
-            target: sorted({source for source, targets in relationship_map.items() if target in targets})
+            target: sorted(
+                {
+                    source
+                    for source, targets in relationship_map.items()
+                    if target in targets
+                }
+            )
             for target in set().union(*relationship_map.values())
         },
     }
@@ -705,7 +752,7 @@ def _generate_usage_examples(ast_node: ast.AST) -> list:
             if node.name.startswith("test_") or node.name.startswith("example_"):
                 example = {
                     "code": ast.unparse(node),
-                    "description": (ast.get_docstring(node) or "").split("\n")[0]
+                    "description": (ast.get_docstring(node) or "").split("\n")[0],
                 }
                 self.examples.append(example)
             self.generic_visit(node)
@@ -749,7 +796,7 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
         tree = ast.parse(content)
     except SyntaxError as e:
         raise ValueError(f"Syntax error in {file_path}: {e}") from e
-    
+
     module_data = {
         "name": _get_module_name(file_path, package_root),
         "path": str(file_path),
@@ -759,35 +806,46 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
             "cross_references": set(),
             "functions": {},
             "classes": {},
-            "variables": {}
+            "variables": {},
         },
         "examples": [],
         "layer": "unknown",
         "role": "Not specified",
         "constants": {},
-        "docstrings": {}
+        "docstrings": {},
     }
-    
+
     # Actual processing logic here...
-    
+
     # Add type tracing for examples
-    logger.debug(f"Raw examples from AST: {[type(e).__name__ for e in module_data['examples']]}")
-    
+    logger.debug(
+        f"Raw examples from AST: {[type(e).__name__ for e in module_data['examples']]}"
+    )
+
     # Final cleanup pass
     module_data["examples"] = [
-        ex if isinstance(ex, dict) else {"code": str(ex), "output": "", "type": "doctest"}
+        (
+            ex
+            if isinstance(ex, dict)
+            else {"code": str(ex), "output": "", "type": "doctest"}
+        )
         for ex in module_data.get("examples", [])
     ]
-    
-    logger.debug(f"Post-processed examples: {[type(e).__name__ for e in module_data['examples']]}")
+
+    logger.debug(
+        f"Post-processed examples: {[type(e).__name__ for e in module_data['examples']]}"
+    )
     return module_data
 
 
 class DocProcessor:
     def __init__(self, config: dict, examples):
         # Filter invalid examples immediately
-        self.examples = [ex for ex in (examples if isinstance(examples, list) else [examples])
-                        if isinstance(ex, (str, dict))]
+        self.examples = [
+            ex
+            for ex in (examples if isinstance(examples, list) else [examples])
+            if isinstance(ex, (str, dict))
+        ]
         self._process_examples()
 
     def _process_examples(self) -> None:
@@ -795,19 +853,23 @@ class DocProcessor:
         for idx, example in enumerate(self.examples, 1):
             # Handle string examples
             if isinstance(example, str):
-                validated.append({
-                    "code": example.strip(),
-                    "output": "",
-                    "type": "doctest"
-                })
+                validated.append(
+                    {"code": example.strip(), "output": "", "type": "doctest"}
+                )
                 continue
-                
+
             # Validate dict examples
             if "code" in example or "content" in example:
-                validated.append({
-                    "type": example.get("type", "doctest"),
-                    "code": str(example.get("code", example.get("content", ""))).strip(),
-                    "output": str(example.get("output", example.get("result", ""))).strip()
-                })
-        
+                validated.append(
+                    {
+                        "type": example.get("type", "doctest"),
+                        "code": str(
+                            example.get("code", example.get("content", ""))
+                        ).strip(),
+                        "output": str(
+                            example.get("output", example.get("result", ""))
+                        ).strip(),
+                    }
+                )
+
         self.examples = validated

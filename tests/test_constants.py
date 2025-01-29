@@ -3,7 +3,7 @@ from chewdoc.constants import (
     TEMPLATE_VERSION,
     DEFAULT_EXCLUSIONS,
     ERROR_TEMPLATES,
-    TYPE_ALIASES
+    TYPE_ALIASES,
 )
 
 

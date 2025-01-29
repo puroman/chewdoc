@@ -103,7 +103,7 @@ DEFAULT_EXCLUSIONS = [
     "dist/*",
     "venv*",
     ".venv*",
-    "env*"
+    "env*",
 ]
 
 TYPE_ALIASES = {"List": "list", "Dict": "dict", "Optional": "typing.Optional"}
