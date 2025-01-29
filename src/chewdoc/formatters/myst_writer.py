@@ -305,12 +305,12 @@ class MystWriter:
     def _format_module(self, module: dict) -> str:
         """Format a module's documentation"""
         try:
-            content = [f"# {module['name']}", f"```{{module}} {module['name']}\n"]
-
-            # Add module description if available
-            if module.get("docstrings", {}).get("module"):
-                content.append(module["docstrings"]["module"])
-                content.append("")
+            content = [
+                f"# {module['name']}\n",
+                f"```{{py:module}} {module['name']}",
+                (module.get("docstrings", {}).get("module") or "No module docstring available"),
+                "```\n\n",  # Ensure proper spacing after code block
+            ]
 
             # Add examples section if available
             if module.get("examples"):
@@ -321,7 +321,7 @@ class MystWriter:
             # Add API Reference section if there are classes or functions
             type_info = module.get("type_info", {})
             if type_info.get("classes") or type_info.get("functions"):
-                content.append("\n## API Reference\n")
+                content.append("\n## API Reference\n\n")  # Add line break after header
 
                 # Add variables
                 if type_info.get("variables"):
@@ -423,7 +423,12 @@ class MystWriter:
     def _format_function(self, func_name: str, func_data: dict) -> str:
         try:
             signature = self._format_function_signature(func_data)
-            return f"## `{func_name}{signature}`"
+            return (
+                f"### `{func_name}{signature}`\n\n"
+                f"```{{py:function}} {func_name}{signature}\n"
+                f"{func_data.get('doc', 'No docstring available')}\n"
+                "```\n"
+            )
         except Exception as e:
             logger.warning(f"Failed to format function {func_name}: {e}")
             return f"## `{func_name}()`\n\n*Error formatting signature: {str(e)}*"
