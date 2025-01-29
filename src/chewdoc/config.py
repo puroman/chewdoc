@@ -4,13 +4,16 @@ Configuration handling for chewdoc documentation generator
 
 from pathlib import Path
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
 from chewdoc.constants import (  # Updated imports
     DEFAULT_EXCLUSIONS,
     TEMPLATE_VERSION,
     TYPE_ALIASES,
 )
 import tomli
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ChewdocConfig(BaseModel):
@@ -35,14 +38,42 @@ class ChewdocConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ExampleSchema(BaseModel):
+    code: str
+    output: str = ""
+
+
 def validate_examples(examples: list) -> list:
-    """Ensure examples have correct structure."""
+    """Validate examples with detailed error reporting."""
     validated = []
-    for ex in examples:
-        if isinstance(ex, dict) and "code" in ex:
-            validated.append(ex)
-        elif isinstance(ex, str):
-            validated.append({"code": ex, "output": ""})
+    for idx, ex in enumerate(examples, 1):
+        try:
+            # Handle string examples
+            if isinstance(ex, str):
+                validated.append({
+                    "type": "doctest",
+                    "code": ex,
+                    "output": ""
+                })
+                continue
+                
+            # Require dictionary format
+            if not isinstance(ex, dict):
+                raise TypeError(f"Example #{idx} is {type(ex).__name__}, expected dict")
+                
+            # Check required fields
+            if "code" not in ex and "content" not in ex:
+                raise ValueError(f"Example #{idx} missing code/content")
+                
+            validated.append({
+                "type": ex.get("type", "doctest"),
+                "code": str(ex.get("code", ex.get("content", ""))),
+                "output": str(ex.get("output", ex.get("result", "")))
+            })
+            
+        except (TypeError, ValueError) as e:
+            logger.error(f"Config validation failed for example #{idx}: {e}")
+            
     return validated
 
 
@@ -51,7 +82,14 @@ def load_config(path: Optional[Path] = None) -> ChewdocConfig:
     if path and path.exists():
         with open(path, "rb") as f:
             config_data = tomli.load(f).get("tool", {}).get("chewdoc", {})
-            if 'examples' in config_data:
-                config_data['examples'] = validate_examples(config_data['examples'])
+            
+            # Add type enforcement for examples
+            raw_examples = config_data.get('examples', [])
+            if not isinstance(raw_examples, list):
+                logger.error(f"❌ Config error: examples must be a list (got {type(raw_examples).__name__})")
+                raw_examples = []
+            
+            config_data['examples'] = validate_examples(raw_examples)
+            
             return ChewdocConfig(**config_data)
     return ChewdocConfig()

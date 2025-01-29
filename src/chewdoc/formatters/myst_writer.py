@@ -8,8 +8,11 @@ import ast
 import click
 import fnmatch
 import re
+import logging
 
 from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
+
+logger = logging.getLogger(__name__)
 
 
 class MystWriter:
@@ -214,42 +217,54 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with validation"""
+        """Format function signature with validation."""
         args_node = func_info.get('args')
+        return_type = func_info.get('returns')
         
-        if isinstance(args_node, dict):  # Handle serialized arguments
-            args_node = ast.arguments(**args_node)
+        # Add type checking for AST nodes
+        if args_node and not isinstance(args_node, ast.arguments):
+            logger.error(f"Invalid args type: {type(args_node).__name__}")
+            args_node = None
         
-        if not isinstance(args_node, (ast.arguments, type(None))):
-            raise ValueError(f"Malformed arguments node: {type(args_node).__name__}")
-        
-        returns_node = func_info.get('returns')
-        return_type = ""
-        
-        if isinstance(returns_node, ast.Constant) and isinstance(returns_node.value, type):
-            return_type = returns_node.value.__name__
-        elif returns_node:
-            return_type = get_annotation(returns_node, self.config)
+        if return_type and not isinstance(return_type, ast.AST):
+            logger.error(f"Invalid return type: {type(return_type).__name__}")
+            return_type = None
         
         return format_function_signature(
             args=args_node,
-            returns=return_type,  # Pass the processed return type
+            returns=return_type,
             config=self.config
         )
 
     def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
-        """Format usage examples section"""
-        if not examples:
-            return "No usage examples found"
-            
+        """Format examples with redundant type checking and detailed error context."""
         output = ["## Usage Examples"]
-        for ex in examples:
-            if ex["type"] == "doctest":
-                output.append(f"```python\n{ex['content']}\n```")
-            elif ex["type"] == "pytest":
-                output.append(f"**Test case**: `{ex['name']}`\n```python\n{ex['content']}\n```")
         
-        return "\n\n".join(output)
+        for idx, ex in enumerate(examples, 1):
+            try:
+                # Final type enforcement
+                example = (
+                    ex if isinstance(ex, dict) 
+                    else {"code": str(ex), "output": "", "type": "doctest"}
+                )
+                
+                # Validate critical fields
+                if not isinstance(example.get("code", ""), str):
+                    raise ValueError(f"Example {idx} has invalid code type: {type(example.get('code')).__name__}")
+                    
+                # Formatting logic
+                code_block = f"```python\n{example['code']}\n```"
+                output.append(code_block)
+                
+                if example.get("output"):
+                    output.append(f"**Output**:\n```\n{example['output']}\n```")
+                    
+            except Exception as e:
+                logger.error(f"💥 Critical error formatting example {idx}: {str(e)}")
+                logger.debug(f"Problematic example: {ex} (Type: {type(ex).__name__})")
+                continue
+            
+        return "\n\n".join(output) if len(output) > 1 else ""
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -294,7 +309,7 @@ class MystWriter:
         if module.get('type_info', {}).get('variables'):
             content.append("\n### Variables\n")
             content.append("\n".join(
-                f"- `{var}`: {info.get('value')}"
+                f"- `{var}`: {info if isinstance(info, str) else info.get('value', '')}"
                 for var, info in module['type_info']['variables'].items()
             ))
         

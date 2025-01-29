@@ -2,6 +2,9 @@ import ast
 from chewdoc.config import ChewdocConfig
 from typing import Any, List, Tuple, Union, Optional
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
@@ -118,15 +121,20 @@ def find_usage_examples(node: ast.AST) -> list:
 
 
 def format_function_signature(args: Optional[ast.arguments], returns: Optional[ast.AST], config: ChewdocConfig) -> str:
-    """Format function signature with type annotations"""
+    """Format function signature with enhanced type safety."""
     params = []
-    # Handle missing arguments
-    if args and getattr(args, 'args', None):
+    
+    # Validate arguments structure
+    if args and isinstance(args, ast.arguments) and hasattr(args, 'args'):
         for arg in args.args:
-            name = arg.arg
-            annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
-            param = f"{name}{': ' + annotation if annotation else ''}"
-            params.append(param)
+            try:
+                name = arg.arg  # type: ignore
+                annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
+                param = f"{name}{': ' + annotation if annotation else ''}"
+                params.append(param)
+            except AttributeError as e:
+                logger.error(f"Invalid argument node: {e}")
+                continue
     
     return_type = get_annotation(returns, config) if returns else ""
     signature = f"({', '.join(params)})" if params else "()"

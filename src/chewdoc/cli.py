@@ -4,6 +4,10 @@ from chewdoc.core import analyze_package, generate_docs
 from pathlib import Path
 from datetime import datetime
 import sys
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -39,6 +43,15 @@ def chew(source, version, local, output, verbose):
             verbose=verbose
         )
         
+        # Add validation checkpoint
+        invalid_examples = sum(
+            1 for m in result["modules"]
+            for ex in m.get("examples", [])
+            if not isinstance(ex, dict) or "code" not in ex
+        )
+        if invalid_examples > 0:
+            logger.warning(f"Found {invalid_examples} malformed examples in final output")
+        
         if verbose:
             total_examples = sum(len(m.get("examples", [])) for m in result["modules"])
             click.echo(f"📋 Found {total_examples} usage examples across modules")
@@ -53,5 +66,8 @@ def chew(source, version, local, output, verbose):
         return 0  # Explicit success return code
 
     except Exception as e:
-        click.echo(f"❌ Error: {str(e)}", err=True)
+        logger.error(f"Documentation generation failed: {str(e)}")
+        if verbose:
+            logger.error("🚨 Full error context:")
+            logger.error(traceback.format_exc())
         sys.exit(1)

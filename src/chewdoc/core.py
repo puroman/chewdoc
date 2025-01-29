@@ -687,7 +687,7 @@ def _infer_type_info(node: ast.Assign) -> Dict[str, str]:
 
 
 def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) -> dict:
-    """Process individual file and return module data with defaults"""
+    """Process file with enhanced example validation."""
     with open(file_path, "rb") as f:  # Read as bytes
         content = f.read()
     try:
@@ -715,6 +715,16 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
     
     # Actual processing logic here...
     
+    # Add type tracing for examples
+    logger.debug(f"Raw examples from AST: {[type(e).__name__ for e in module_data['examples']]}")
+    
+    # Final cleanup pass
+    module_data["examples"] = [
+        ex if isinstance(ex, dict) else {"code": str(ex), "output": "", "type": "doctest"}
+        for ex in module_data.get("examples", [])
+    ]
+    
+    logger.debug(f"Post-processed examples: {[type(e).__name__ for e in module_data['examples']]}")
     return module_data
 
 
@@ -722,20 +732,43 @@ class DocProcessor:
     def __init__(self, config: dict, examples: list):
         self.config = config
         self.examples = examples
+        print(f"🔍 Example Types: {[type(e).__name__ for e in self.examples]}")
         self._process_examples()
+        print(f"EXAMPLES AFTER PROCESSING: {self.examples}")  # Temporary debug
 
     def _process_examples(self) -> None:
-        """Process and validate code examples from configuration."""
-        validated_examples = []
+        """Process examples with exhaustive type checking."""
+        validated = []
         
-        for example in self.examples:
-            if isinstance(example, str):
-                validated_examples.append({"code": example, "output": ""})
-            elif isinstance(example, dict) and "code" in example:
-                validated_examples.append({
-                    "code": str(example.get("code", "")).strip(),
-                    "output": str(example.get("output", "")).strip()
+        for idx, example in enumerate(self.examples, 1):
+            try:
+                # Handle string examples
+                if isinstance(example, str):
+                    validated.append({
+                        "code": example,
+                        "output": "",
+                        "type": "doctest"
+                    })
+                    continue
+                    
+                # Require dictionary format
+                if not isinstance(example, dict):
+                    raise TypeError(f"Expected dict, got {type(example).__name__}")
+                    
+                # Validate required fields
+                if "code" not in example and "content" not in example:
+                    raise ValueError("Missing 'code' or 'content' field")
+                    
+                # Normalize fields
+                validated.append({
+                    "type": example.get("type", "doctest"),
+                    "code": str(example.get("code", example.get("content", ""))).strip(),
+                    "output": str(example.get("output", example.get("result", ""))).strip()
                 })
+                
+            except (TypeError, ValueError) as e:
+                logger.warning(f"Invalid example #{idx}: {e}")
+                continue
         
-        self.examples = validated_examples
-        logger.debug(f"Processed {len(self.examples)} valid examples")
+        self.examples = validated
+        logger.info(f"Validated {len(validated)}/{len(self.examples)} examples")

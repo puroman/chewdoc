@@ -232,3 +232,37 @@ def test_example_processing():
     assert len(processor.examples) == 2
     assert processor.examples[0] == {"code": "print('hello')", "output": ""}
     assert processor.examples[1] == {"code": "1 + 1", "output": "2"}
+
+def test_error_handling():
+    """Test invalid example handling."""
+    processor = DocProcessor(
+        config={},
+        examples=[{"invalid": "format"}, 12345]
+    )
+    assert len(processor.examples) == 0
+
+def test_edge_case_examples():
+    """Test non-standard but valid example formats."""
+    processor = DocProcessor(
+        config={},
+        examples=[
+            {"content": "import os", "result": ""},  # Legacy format
+            {"code": 42, "output": None},  # Non-string values
+            ["invalid", "type"]  # Should be filtered out
+        ]
+    )
+    
+    assert len(processor.examples) == 2
+    assert processor.examples[0]["code"] == "import os"
+    assert processor.examples[1]["code"] == "42"
+
+def test_config_example_types():
+    """Test config validation handles different example container types"""
+    # Test string instead of list
+    processor = DocProcessor(config={}, examples="print('bad')")
+    assert len(processor.examples) == 1
+    assert processor.examples[0]["code"] == "print('bad')"
+    
+    # Test invalid container type
+    with pytest.raises(TypeError):
+        DocProcessor(config={}, examples={"invalid": "type"})

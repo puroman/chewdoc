@@ -103,3 +103,25 @@ def test_myst_writer_error_handling(tmp_path):
     with pytest.raises(ValueError) as excinfo:
         writer.generate(package_info, tmp_path)
     assert "Malformed arguments node" in str(excinfo.value)
+
+def test_myst_writer_invalid_examples(tmp_path, caplog):
+    """Test handling of malformed examples in MystWriter."""
+    writer = MystWriter()
+    package_info = {
+        "package": "testpkg",
+        "modules": [{
+            "name": "bad_examples",
+            "examples": [
+                "print('valid string')",
+                {"content": "another valid"},
+                ["invalid list example"],
+                42,
+                {"type": "pytest"}  # Missing code
+            ]
+        }]
+    }
+    
+    writer.generate(package_info, tmp_path)
+    assert "Skipping invalid example" in caplog.text
+    assert "Expected dict" in caplog.text
+    assert "Missing code/content" in caplog.text
