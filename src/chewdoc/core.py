@@ -12,6 +12,8 @@ import sys
 import logging
 import re
 import textwrap
+from dataclasses import dataclass
+from functools import cached_property
 
 try:
     import tomli
@@ -36,10 +38,10 @@ logger = logging.getLogger(__name__)
 def analyze_package(
     source: str,
     is_local: bool = True,
-    version: Optional[str] = None,
-    config: Optional[ChewdocConfig] = None,
+    version: str | None = None,
+    config: ChewdocConfig | None = None,
     verbose: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze Python package and extract documentation metadata.
 
     Example:
@@ -48,36 +50,11 @@ def analyze_package(
         >>> "requests" in result["package"]
         True
     """
-    try:
-        if is_local:
-            path = Path(source).resolve()
-            if not path.exists():
-                raise ValueError(f"Invalid source path: {source}")
-
-            if not path.is_dir() and not (path.is_file() and path.suffix == ".py"):
-                raise ValueError(
-                    "Local package path must be a directory or a Python file"
-                )
-        else:
-            # For PyPI packages, we'll download and process them later
-            path = Path(source)
-
-    except OSError as e:
-        raise ValueError(f"Path error: {str(e)}") from e
-
-    module_path = path  # Initialize early
-    if is_local:
-        if not module_path.exists():
-            # Create empty file for test purposes
-            if "tests/fixtures" in str(module_path):
-                module_path.touch()
-            else:
-                raise ValueError(f"Invalid source path: {source}")
-
-    start_time = datetime.now()
-    if verbose:
-        click.echo(f"🚀 Starting analysis at {start_time:%H:%M:%S.%f}"[:-3])
-        click.echo(f"📦 Package source: {source}")
+    path = Path(source).resolve() if is_local else Path(source)
+    path.exists() or _handle_missing_path(path, is_local)
+    
+    if verbose and (start := datetime.now()):
+        click.echo(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
 
     config = config or ChewdocConfig()
     try:
@@ -87,7 +64,7 @@ def analyze_package(
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
         package_info.setdefault("imports", defaultdict(list))
-        package_path = get_package_path(module_path, is_local)
+        package_path = get_package_path(path, is_local)
         package_name = _get_package_name(package_path)
         package_info["package"] = package_name
 
@@ -98,18 +75,18 @@ def analyze_package(
         package_info["modules"] = []
         processed = 0
 
-        if is_local and module_path.is_file():
+        if is_local and path.is_file():
             # Handle single file case
             module_data = {
-                "name": module_path.stem,
-                "path": str(module_path),
+                "name": path.stem,
+                "path": str(path),
                 "internal_deps": [],
                 "imports": [],
             }
             module_paths = [module_data]
         else:
             # Handle directory case
-            module_paths = process_modules(package_path, config)
+            module_paths = process_modules(path, config)
 
         total_modules = len(module_paths)
 
@@ -171,20 +148,20 @@ def analyze_package(
         package_info["relationships"] = relationships
 
         if verbose:
-            duration = datetime.now() - start_time
+            duration = datetime.now() - start
             click.echo(f"🏁 Analysis completed in {duration.total_seconds():.3f}s")
             click.echo(f"📊 Processed {len(package_info['modules'])} modules")
 
         return package_info
     except SyntaxError as e:
-        raise ValueError(f"Syntax error in {module_path}: {e}") from e
+        raise ValueError(f"Syntax error in {path}: {e}") from e
     except Exception as e:
         if isinstance(e.__cause__, SyntaxError):
             raise ValueError(f"Syntax error: {e.__cause__}") from e
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
 
 
-def process_modules(package_path: Path, config: ChewdocConfig) -> list:
+def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
     """Process Python modules in package directory.
 
     Example test case:
@@ -194,43 +171,27 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
         assert len(modules) > 0
     ```
     """
-    modules = []
-    module_names = set()
+    return [
+        module_data
+        for file_path in package_path.rglob("*.py")
+        if not _is_excluded(file_path, config.exclude_patterns)
+        and (module_data := _create_module_data(file_path, package_path, config))
+    ]
 
-    for file_path in package_path.rglob("*.py"):
-        if any(
-            fnmatch.fnmatch(part, pattern)
-            for part in file_path.parts
-            for pattern in config.exclude_patterns
-        ):
-            continue
-        module_name = _get_module_name(file_path, package_path)
-        module_names.add(module_name)
-        modules.append(
-            {
-                "name": module_name,
-                "path": str(file_path),
-                "ast": parse_ast(file_path),
-                "internal_deps": set(),
-                "imports": [],
-            }
-        )
 
-    for module in modules:
-        all_imports = _find_imports(module["ast"], package_path.name)
-        for imp in all_imports:
-            if imp["type"] == "internal":
-                parts = imp["full_path"].split(".")
-                for i in range(len(parts), 0, -1):
-                    candidate = ".".join(parts[:i])
-                    if candidate in module_names and candidate != module["name"]:
-                        module["internal_deps"].add(candidate)
-                        break
-
-        module["internal_deps"] = sorted(module["internal_deps"])
-        module["imports"] = all_imports
-
-    return modules
+def _create_module_data(file_path: Path, package_path: Path, config: ChewdocConfig) -> dict | None:
+    module_name = _get_module_name(file_path, package_path)
+    try:
+        return {
+            "name": module_name,
+            "path": str(file_path),
+            "ast": ast.parse(file_path.read_text()),
+            "internal_deps": _find_internal_deps(ast.parse(file_path.read_text()), package_path.name),
+            "imports": _find_imports(ast.parse(file_path.read_text()), package_path.name)
+        }
+    except SyntaxError as e:
+        logger.warning(f"Skipping {file_path} due to syntax error: {e}")
+        return None
 
 
 def parse_ast(file_path: Path) -> ast.AST:
@@ -352,22 +313,17 @@ def parse_pyproject(path: Path) -> dict:
         return tomli.load(f)
 
 
-def extract_docstrings(node: ast.AST) -> Dict[str, str]:
-    """Enhanced docstring extraction with context tracking"""
+def extract_docstrings(node: ast.AST) -> dict[str, str]:
     docs = {}
     for child in ast.walk(node):
-        if isinstance(child, (ast.Module, ast.ClassDef, ast.FunctionDef)):
-            try:
-                docstring = ast.get_docstring(child, clean=True)
-                if docstring:
-                    key = f"{type(child).__name__}:{getattr(child, 'name', 'module')}"
-                    docs[key] = {
-                        "doc": docstring,
+        match child:
+            case ast.Module(name=name) | ast.ClassDef(name=name) | ast.FunctionDef(name=name):
+                if doc := ast.get_docstring(child, clean=True):
+                    docs[f"{type(child).__name__}:{name}"] = {
+                        "doc": doc,
                         "line": child.lineno,
-                        "context": _get_code_context(child),
+                        "context": _get_code_context(child)
                     }
-            except Exception as e:
-                continue
     return docs
 
 
@@ -545,22 +501,13 @@ def _get_return_type(returns: ast.AST, config: ChewdocConfig) -> str:
 
 def _get_package_name(package_path: Path) -> str:
     """Extract package name from path, handling versioned directories"""
-    # Convert path to string and split into parts
+    from packaging.version import parse as parse_version
+    
     path_str = str(package_path)
-    parts = path_str.split("/")
-
-    # Remove empty parts and handle absolute paths
-    parts = [p for p in parts if p]
-
-    # Look for version pattern in parts
-    for part in parts:
-        # Match version patterns like v1.2.3 or -1.2.3
-        if re.search(r"-\d+\.\d+\.\d+", part):
-            # Split on version number and return the base name
-            return re.split(r"-\d+\.\d+\.\d+", part)[0]
-
-    # If no version pattern found, return the last part
-    return parts[-1] if parts else ""
+    if (match := re.search(r"/(v?\d+\.\d+\.\d+)/", path_str)):
+        version = parse_version(match.group(1))
+        return path_str.split(match.group(1))[0].split("/")[-1]
+    return package_path.name
 
 
 def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
@@ -839,9 +786,13 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
 
 
 class DocProcessor:
-    def __init__(self, config: ChewdocConfig, examples: Optional[Any] = None):
+    def __init__(self, config: ChewdocConfig, examples: Any = None):
         self.config = config
-        self.examples = self._normalize_examples(examples)
+        self._raw_examples = examples
+
+    @cached_property
+    def examples(self) -> list[dict]:
+        return self._normalize_examples(self._raw_examples)
 
     def _normalize_examples(self, examples: Any) -> list:
         """Convert all examples to proper dict format with validation"""
