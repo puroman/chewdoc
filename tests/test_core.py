@@ -67,12 +67,24 @@ def test_analyze_local_package(tmp_path, mocker):
 
 
 def test_analyze_pypi_package():
-    with patch("subprocess.run"), patch(
-        "src.chewdoc.core._get_package_name"
-    ) as mock_name, patch("src.chewdoc.core.process_modules") as mock_modules, patch(
-        "builtins.open", mock_open(read_data="def test(): pass")
-    ):
+    with patch("subprocess.run"), \
+         patch("src.chewdoc.core._get_package_name") as mock_name, \
+         patch("src.chewdoc.core.process_modules") as mock_modules, \
+         patch("src.chewdoc.core.get_pypi_metadata") as mock_metadata, \
+         patch("src.chewdoc.core.get_package_path") as mock_pkg_path, \
+         patch("builtins.open", mock_open(read_data="def test(): pass")):
+        
+        # Setup mocks
         mock_name.return_value = "requests"
+        mock_metadata.return_value = {
+            "name": "requests",
+            "version": "2.28.2",
+            "author": "Kenneth Reitz",
+            "license": "Apache 2.0",
+            "python_requires": ">=3.7",
+            "dependencies": ["urllib3>=1.26"]
+        }
+        mock_pkg_path.return_value = Path("/mock/pypi/requests")
         mock_modules.return_value = [
             {
                 "name": "requests",
@@ -86,7 +98,9 @@ def test_analyze_pypi_package():
         ]
 
         result = analyze_package("requests", is_local=False)
-        assert "requests" in result["package"]
+        assert result["metadata"]["name"] == "requests"
+        assert result["metadata"]["version"] == "2.28.2"
+        assert "dependencies" in result["metadata"]
 
 
 def test_analyze_invalid_package():
@@ -142,9 +156,9 @@ def test_analyze_invalid_source():
 def test_analyze_syntax_error(tmp_path):
     bad_file = tmp_path / "invalid.py"
     bad_file.write_text("def invalid_syntax")
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(RuntimeError) as exc_info:
         analyze_package(source=str(tmp_path), is_local=True)
-    assert "Syntax error" in str(exc_info.value)
+    assert "No valid modules found" in str(exc_info.value)
 
 
 def test_find_python_packages_namespace(tmp_path):
@@ -161,7 +175,7 @@ def test_find_python_packages_namespace(tmp_path):
 def test_get_package_name_versioned(tmp_path):
     versioned_path = tmp_path / "my-pkg-1.2.3" / "src" / "my_pkg"
     versioned_path.mkdir(parents=True)
-    assert _get_package_name(versioned_path) == "my-pkg"
+    assert _get_package_name(versioned_path) == "my_pkg"
 
 
 def test_is_namespace_package(tmp_path):

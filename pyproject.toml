@@ -10,10 +10,10 @@ authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
-    "pydantic>=2.0",
+    "pydantic>=2.10.6",
     "astunparse>=1.6.3",
-    "myst-parser>=2.0.0",
-    "python-dotenv>=1.0.0"
+    "myst-parser>=4.0.0",
+    "python-dotenv>=1.0.1"
 ]
 
 [project.optional-dependencies]
