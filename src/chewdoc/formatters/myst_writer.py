@@ -23,9 +23,10 @@ class MystWriter:
     def __init__(self, config: Optional[ChewdocConfig] = None):
         self.config = config or ChewdocConfig()
         self.package_data = {}
-        self.config.max_example_lines = getattr(
-            self.config, "max_example_lines", 15
-        )  # Add default
+        self.current_module = {}  # Initialize here instead of in generate()
+        # Set default if not present in config
+        if not hasattr(self.config, 'max_example_lines'):
+            self.config.max_example_lines = 15
 
     def generate(
         self, package_data: Dict[str, Any], output_path: Path, verbose: bool = False
@@ -82,6 +83,7 @@ class MystWriter:
         module.setdefault("type_info", {})
         module.setdefault("examples", [])
         module.setdefault("docstrings", {})
+        module.setdefault("internal_deps", [])  # Add default for dependencies
         try:
             return MODULE_TEMPLATE.format(
                 name=module["name"],
@@ -93,9 +95,7 @@ class MystWriter:
                 ),
                 description=self._get_module_description(module),
                 dependencies=self._format_dependencies(module["internal_deps"]),
-                usage_examples=self._format_usage_examples(
-                    module.get("examples", []), config=self.config
-                ),
+                usage_examples=self._format_usage_examples(module.get("examples", [])),
                 api_reference=self._format_api_reference(module.get("type_info", {})),
             )
         except ValueError as e:
@@ -103,47 +103,31 @@ class MystWriter:
                 f"Failed to process module {module['name']}: {str(e)}"
             ) from e
 
-    def _format_imports(self, imports: list, package_name: str) -> str:
-        """Format imports using actual package context"""
-        categorized = {"stdlib": [], "internal": [], "external": []}
+    def _format_imports(self, imports: list, package: str) -> str:
+        """Categorize imports with full path handling"""
+        stdlib_imports = set()
+        int_imports = set()
+        ext_imports = set()
 
-        # Add cross-references first
-        for ref in self.current_module.get("type_info", {}).get("cross_references", []):
-            categorized["internal"].append(f"- [[{ref}]]")
-
-        # Then process regular imports
         for imp in imports:
-            if isinstance(imp, str):
-                imp = {"name": imp, "full_path": imp, "source": ""}
-
-            entry = f"`{imp['name']}`"
-            if imp.get("source"):
-                entry += f" from `{imp['source']}`"
-
-            if imp["full_path"].startswith(f"{package_name}."):
-                categorized["internal"].append(f"- [[{imp['full_path']}|{entry}]]")
-            elif "." not in imp["full_path"]:
-                categorized["stdlib"].append(f"- {entry}")
+            if imp["source"].startswith(package):
+                # Internal dependency - create crosslink
+                int_imports.add(f"[[{imp['full_path']}|`{imp['name']}`]]")
+            elif not imp["source"]:  # Standard library
+                stdlib_imports.add(f"`{imp['full_path']}`")
             else:
-                categorized["external"].append(f"- {entry}")
+                # External dependency - show full path
+                ext_imports.add(f"`{imp['full_path']}` from `{imp['source']}`")
 
         sections = []
-        if categorized["stdlib"]:
-            sections.append(
-                "### Standard Library\n" + "\n".join(sorted(categorized["stdlib"]))
-            )
-        if categorized["internal"]:
-            sections.append(
-                "### Internal Dependencies\n"
-                + "\n".join(sorted(categorized["internal"]))
-            )
-        if categorized["external"]:
-            sections.append(
-                "### External Dependencies\n"
-                + "\n".join(sorted(categorized["external"]))
-            )
+        if stdlib_imports:
+            sections.append("### Standard Library\n" + "\n".join(sorted(stdlib_imports)))
+        if int_imports:
+            sections.append("### Internal Dependencies\n" + "\n".join(sorted(int_imports)))
+        if ext_imports:
+            sections.append("### External Dependencies\n" + "\n".join(sorted(ext_imports)))
 
-        return "\n\n".join(sections) if sections else "No imports"
+        return "\n\n".join(sections)
 
     def _format_code_structure(self, ast_data: ast.Module) -> str:
         """Visualize code structure hierarchy"""
@@ -236,19 +220,34 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with error handling"""
+        """Format function signature with robust type checking"""
         try:
-            args_data = func_info.get("args")
-            return_data = func_info.get("returns")
+            args = func_info.get("args")
+            returns = func_info.get("returns")
 
-            if not isinstance(args_data, (ast.arguments, dict)):
-                raise ValueError(f"Invalid args data type: {type(args_data)}")
+            # Handle different argument formats
+            if isinstance(args, ast.arguments):
+                return format_function_signature(args, returns, self.config)
+            elif isinstance(args, dict):
+                # Validate args structure
+                args_list = args.get("args", [])
+                if not isinstance(args_list, list):
+                    raise ValueError("Invalid arguments structure: 'args' field must be a list")
+                
+                return format_function_signature(
+                    ast.arguments(
+                        args=[ast.arg(arg=arg) for arg in args_list],
+                        defaults=args.get("defaults", []),
+                    ),
+                    returns,
+                    self.config
+                )
+            else:
+                raise ValueError("Unsupported arguments type")
 
-            return format_function_signature(
-                args=args_data, returns=return_data, config=self.config
-            )
         except Exception as e:
-            raise ValueError(f"Failed to format function signature: {str(e)}")
+            logger.warning(f"Failed to format function signature: {str(e)}")
+            return "()"  # Return safe default
 
     def _format_usage_examples(self, examples: list) -> str:
         """Format usage examples with proper error handling"""
@@ -263,13 +262,13 @@ class MystWriter:
                 elif isinstance(example, dict):
                     if "code" not in example and "content" not in example:
                         logger.warning(
-                            f"Skipping invalid example #{idx}: missing code/content"
+                            f"Skipping invalid example #{idx}: Expected dict with 'code' or 'content' key"
                         )
                         continue
                     code = example.get("code") or example.get("content", "")
                 else:
                     logger.warning(
-                        f"Skipping invalid example #{idx}: invalid type {type(example)}"
+                        f"Skipping invalid example #{idx}: Expected dict or string, got {type(example)}"
                     )
                     continue
 
@@ -309,72 +308,83 @@ class MystWriter:
 
     def _format_module(self, module: dict) -> str:
         """Format a module's documentation"""
-        content = [f"# {module['name']}", f"```{{module}} {module['name']}\n"]
+        try:
+            content = [f"# {module['name']}", f"```{{module}} {module['name']}\n"]
 
-        # Add module description if available
-        if module.get("docstrings", {}).get("module"):
-            content.append(module["docstrings"]["module"])
-            content.append("")
-
-        # Add examples section if available
-        if module.get("examples"):
-            content.extend(
-                ["## Examples\n", self._format_usage_examples(module["examples"])]
-            )
-
-        # Add API Reference section if there are classes or functions
-        type_info = module.get("type_info", {})
-        if type_info.get("classes") or type_info.get("functions"):
-            content.append("\n## API Reference\n")
-
-            # Add variables
-            if type_info.get("variables"):
-                content.append("### Variables\n")
-                for var_name, var_info in type_info["variables"].items():
-                    content.append(
-                        f"- `{var_name}`: {var_info.get('value', 'Unknown')}"
-                    )
+            # Add module description if available
+            if module.get("docstrings", {}).get("module"):
+                content.append(module["docstrings"]["module"])
                 content.append("")
 
-            # Add classes
-            if type_info.get("classes"):
-                for cls_name, cls_info in type_info["classes"].items():
-                    content.append(f"### {cls_name}\n")
-                    if cls_info.get("doc"):
-                        content.append(cls_info["doc"])
-                    if cls_info.get("methods"):
-                        content.append("\n#### Methods")
-                        for method_name, method_info in cls_info["methods"].items():
-                            content.append(f"\n##### {method_name}")
-                            if method_info.get("doc"):
-                                content.append(method_info["doc"])
+            # Add examples section if available
+            if module.get("examples"):
+                content.extend(
+                    ["## Examples\n", self._format_usage_examples(module["examples"])]
+                )
+
+            # Add API Reference section if there are classes or functions
+            type_info = module.get("type_info", {})
+            if type_info.get("classes") or type_info.get("functions"):
+                content.append("\n## API Reference\n")
+
+                # Add variables
+                if type_info.get("variables"):
+                    content.append("### Variables\n")
+                    for var_name, var_info in type_info["variables"].items():
+                        # Handle different variable info formats
+                        var_value = (
+                            var_info.get("value") 
+                            if isinstance(var_info, dict)
+                            else str(var_info)
+                        )
+                        content.append(f"- `{var_name}`: {var_value or 'Unknown'}")
                     content.append("")
 
-            # Add functions
-            if type_info.get("functions"):
-                for func_name, func_info in type_info["functions"].items():
-                    try:
-                        signature = self._format_function_signature(func_info)
-                        content.append(f"## `{func_name}{signature}`")
-                        if func_info.get("doc"):
-                            content.append(func_info["doc"])
+                # Add classes
+                if type_info.get("classes"):
+                    for cls_name, cls_info in type_info["classes"].items():
+                        content.append(f"### [[{cls_name}]]\n")
+                        if cls_info.get("doc"):
+                            content.append(cls_info["doc"])
+                        if cls_info.get("methods"):
+                            content.append("\n#### Methods")
+                            for method_name, method_info in cls_info["methods"].items():
+                                content.append(f"\n##### {method_name}")
+                                if method_info.get("doc"):
+                                    content.append(method_info["doc"])
                         content.append("")
-                    except ValueError as e:
-                        logger.warning(f"Failed to format function {func_name}: {e}")
-                        content.append(f"### {func_name}")
-                        if func_info.get("doc"):
-                            content.append(func_info["doc"])
-                        content.append("")
-        # Add variables section outside of API Reference if only variables exist
-        elif type_info.get("variables"):
-            content.append("\n### Variables\n")
-            for var_name, var_info in type_info["variables"].items():
-                content.append(
-                    f"- `{var_name}`: {var_info.get('value', 'Unknown')}"
-                )
-            content.append("")
 
-        return "\n".join(content)
+                # Add functions
+                if type_info.get("functions"):
+                    for func_name, func_info in type_info["functions"].items():
+                        try:
+                            signature = self._format_function_signature(func_info)
+                            content.append(f"## `{func_name}{signature}`")
+                            if func_info.get("doc"):
+                                content.append(func_info["doc"])
+                            content.append("")
+                        except ValueError as e:
+                            logger.warning(f"Failed to format function {func_name}: {e}")
+                            continue
+
+            # Add variables section outside of API Reference if only variables exist
+            elif type_info.get("variables"):
+                content.append("\n### Variables\n")
+                for var_name, var_info in type_info["variables"].items():
+                    # Handle different variable info formats
+                    var_value = (
+                        var_info.get("value") 
+                        if isinstance(var_info, dict)
+                        else str(var_info)
+                    )
+                    content.append(f"- `{var_name}`: {var_value or 'Unknown'}")
+                content.append("")
+
+            return "\n".join(content)
+        except ValueError as e:
+            raise ValueError(f"Failed to format module {module.get('name', 'unknown')}: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Unexpected error formatting module {module.get('name', 'unknown')}: {str(e)}")
 
     def _format_classes(self, classes: dict) -> str:
         output = []
@@ -423,11 +433,12 @@ class MystWriter:
             raise ValueError(f"Failed to format class {cls_name}: {str(e)}")
 
     def _format_function(self, func_name: str, func_data: dict) -> str:
-        if not isinstance(func_data.get("args"), (ast.arguments, dict)):
-            raise ValueError(f"Invalid function arguments for {func_name}")
-        args = func_data["args"]
-        returns = func_data.get("returns")
-        return f"`{func_name}{_format_signature(args, returns)}`"
+        try:
+            signature = self._format_function_signature(func_data)
+            return f"## `{func_name}{signature}`"
+        except Exception as e:
+            logger.warning(f"Failed to format function {func_name}: {e}")
+            return f"## `{func_name}()`\n\n*Error formatting signature: {str(e)}*"
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:

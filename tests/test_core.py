@@ -299,5 +299,7 @@ def test_myst_writer_error_handling(tmp_path):
         ],
     }
 
-    # Should not raise errors
+    # Should not raise an error now
     writer.generate(package_info, tmp_path)
+    content = (tmp_path / "broken_mod.md").read_text()
+    assert "## `bad_func()" in content
