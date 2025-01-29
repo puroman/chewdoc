@@ -9,6 +9,7 @@ from collections import defaultdict
 from datetime import datetime
 import click
 import sys
+import logging
 
 try:
     import tomli
@@ -21,6 +22,7 @@ from chewdoc.constants import AST_NODE_TYPES
 import fnmatch
 from chewdoc.config import ChewdocConfig, load_config
 
+logger = logging.getLogger(__name__)
 
 def analyze_package(
     source: str,
@@ -714,3 +716,26 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
     # Actual processing logic here...
     
     return module_data
+
+
+class DocProcessor:
+    def __init__(self, config: dict, examples: list):
+        self.config = config
+        self.examples = examples
+        self._process_examples()
+
+    def _process_examples(self) -> None:
+        """Process and validate code examples from configuration."""
+        validated_examples = []
+        
+        for example in self.examples:
+            if isinstance(example, str):
+                validated_examples.append({"code": example, "output": ""})
+            elif isinstance(example, dict) and "code" in example:
+                validated_examples.append({
+                    "code": str(example.get("code", "")).strip(),
+                    "output": str(example.get("output", "")).strip()
+                })
+        
+        self.examples = validated_examples
+        logger.debug(f"Processed {len(self.examples)} valid examples")

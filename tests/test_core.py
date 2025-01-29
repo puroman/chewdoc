@@ -1,6 +1,6 @@
 import ast
 from pathlib import Path
-from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages, is_namespace_package, _find_constants, ChewdocConfig
+from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages, is_namespace_package, _find_constants, ChewdocConfig, DocProcessor
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
@@ -216,3 +216,19 @@ def test_find_python_packages_edge_cases(tmp_path):
     (versioned_path / "__init__.py").write_text("")
     packages = find_python_packages(tmp_path)
     assert "pkg.sub" in packages
+
+def test_example_processing():
+    """Test example processing with different input formats."""
+    processor = DocProcessor(
+        config={},
+        examples=[
+            "print('hello')",
+            {"code": "1 + 1", "output": "2"},
+            {"invalid": "format"},
+            123  # invalid type
+        ]
+    )
+    
+    assert len(processor.examples) == 2
+    assert processor.examples[0] == {"code": "print('hello')", "output": ""}
+    assert processor.examples[1] == {"code": "1 + 1", "output": "2"}
