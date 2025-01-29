@@ -153,15 +153,13 @@ class MystWriter:
                     # Safely handle args/returns in test data
                     args = details.get("args", ast.arguments())
                     returns = details.get("returns", ast.Name(id="None"))
-                    signature = self._format_function_signature(args, returns)
+                    signature = self._format_function_signature(details)
                     class_doc.append(f"- `{method}{signature}`")
         
         # Handle functions
         for func_name, func_info in types.get("functions", {}).items():
             # Safely handle args/returns in test data
-            args = func_info.get("args", ast.arguments())
-            returns = func_info.get("returns", ast.Name(id="None")) 
-            signature = self._format_function_signature(args, returns)
+            signature = self._format_function_signature(func_info)
             
             func_doc = [
                 f"## `{func_name}{signature}`",
@@ -218,13 +216,22 @@ class MystWriter:
         """Format module list for index page"""
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
-    def _format_function_signature(self, args: ast.arguments, returns: ast.AST) -> str:
+    def _format_function_signature(self, func_info: dict) -> str:
         """Format function signature with type cross-references"""
-        signature = format_function_signature(args, returns, self.config)
-        # Replace all type occurrences including generics
-        for type_name, alias in self.config.known_types.items():
-            signature = re.sub(rf'\b{type_name}\b', f'[{alias}](#{alias.lower()})', signature)
-        return signature
+        # Handle both raw AST and serialized formats
+        args_node = func_info.get('args')
+        returns_node = func_info.get('returns')
+        
+        if isinstance(args_node, dict):  # Handle serialized format
+            args_node = ast.arguments(**args_node)
+        if isinstance(returns_node, dict):  # Handle serialized format
+            returns_node = ast.parse(returns_node['value']).body[0].value
+            
+        return format_function_signature(
+            args=args_node,
+            returns=returns_node,
+            config=self.config
+        )
 
     def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
         """Format usage examples section"""

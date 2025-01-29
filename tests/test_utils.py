@@ -15,14 +15,21 @@ def test_safe_write(tmp_path):
     with pytest.raises(FileExistsError):
         safe_write(test_file, "new content")
 
+def test_safe_write_overwrite(tmp_path):
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("existing")
+    with pytest.raises(FileExistsError):
+        safe_write(test_file, "new content")
+    
+    safe_write(test_file, "new content", overwrite=True)
+    assert test_file.read_text() == "new content"
+
 def test_format_function_signature():
-    args = ast.arguments(
-        args=[ast.arg(arg="x"), ast.arg(arg="y", annotation=ast.Name(id="int"))],
-        returns=ast.Name(id="float")
-    )
+    args = ast.arguments(args=[ast.arg(arg="x"), ast.arg(arg="y")])
+    args.returns = ast.Name(id="float")
     config = ChewdocConfig()
-    sig = format_function_signature(args, returns=args.returns, config=config)
-    assert sig == "(x, y: int) -> float"
+    sig = format_function_signature(args, config=config)
+    assert sig == "(x, y) -> float"
 
 def test_extract_constant_values():
     node = ast.parse("MAX_LENGTH = 100\nAPI_URL = 'https://example.com'")

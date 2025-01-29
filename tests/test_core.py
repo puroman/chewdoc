@@ -123,3 +123,15 @@ def test_analyze_empty_package(tmp_path):
         with pytest.raises(RuntimeError) as exc_info:
             analyze_package(source=str(empty_pkg), is_local=True)
         assert "No valid modules found" in str(exc_info.value)
+
+def test_analyze_invalid_source():
+    with pytest.raises(ValueError) as exc_info:
+        analyze_package(source="/invalid/path", is_local=True)
+    assert "Invalid source path" in str(exc_info.value)
+
+def test_analyze_syntax_error(tmp_path):
+    bad_file = tmp_path / "invalid.py"
+    bad_file.write_text("def invalid_syntax")
+    with pytest.raises(ValueError) as exc_info:
+        analyze_package(source=str(tmp_path), is_local=True)
+    assert "Syntax error" in str(exc_info.value)

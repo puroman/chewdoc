@@ -103,6 +103,10 @@ def validate_ast(node: ast.AST, module_path: Path) -> None:
         if not has_docstring:
             raise ValueError("Empty or invalid module AST structure")
 
+    # Check for common serialization artifacts
+    if any(isinstance(stmt, dict) for stmt in getattr(node, 'body', [])):
+        raise ValueError("AST contains serialized dictionaries instead of nodes")
+
 
 def find_usage_examples(node: ast.AST) -> list:
     """Placeholder example finder (implement your logic here)"""

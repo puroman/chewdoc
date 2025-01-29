@@ -4,7 +4,7 @@ Configuration handling for chewdoc documentation generator
 
 from pathlib import Path
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from chewdoc.constants import (  # Updated imports
     DEFAULT_EXCLUSIONS,
     TEMPLATE_VERSION,
@@ -32,8 +32,7 @@ class ChewdocConfig(BaseModel):
     enable_cross_references: bool = Field(default=True, description="Generate cross-module links")
     max_example_lines: int = Field(default=10, ge=1, description="Max lines in usage examples")
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 def load_config(path: Optional[Path] = None) -> ChewdocConfig:
