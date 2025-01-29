@@ -10,6 +10,7 @@ authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
+    "click>=8.1.8",
     "pydantic>=2.10.6",
     "astunparse>=1.6.3",
     "myst-parser>=4.0.0",
@@ -32,6 +33,7 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["chewdoc*"]
+exclude = ["tests*"]
 
 [project.scripts]
 chewdoc = "chewdoc.cli:cli"
@@ -42,6 +44,3 @@ exclude_patterns = ["__pycache__", "*.test", "tests/", "tests/**"]
 known_types = { "Sequence" = "collections.abc.Sequence" }
 enable_cross_references = true
 max_example_lines = 15
-
-[tool.uv]
-pip-version = "24.0"

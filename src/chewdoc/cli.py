@@ -1,4 +1,4 @@
-from src.chewdoc._version import __version__
+from chewdoc._version import __version__
 import click
 from chewdoc.core import analyze_package, generate_docs
 from pathlib import Path
