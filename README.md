@@ -26,13 +26,13 @@ cd chewdoc && uv pip install -e .
 
 ## Get Started
 
-### Basic Usage
 ```bash
-# Analyze local package
-chewdoc chew ./my_module --local --output docs/
+# Generate docs for current project (default)
+chew
 
-# Generate from PyPI package
-chewdoc chew requests --output docs/api.myst
+# Analyze specific package
+chew ./my_module --output docs/
+chew requests --output docs/requests.myst
 ```
 
 ### Research Notes
