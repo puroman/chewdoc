@@ -519,12 +519,18 @@ def find_python_packages(root_dir: Path) -> Dict[str, dict]:
 
 def is_namespace_package(dirpath: Path) -> bool:
     """Check if directory is a namespace package"""
-    # Check parent directories for namespace markers
-    for parent in dirpath.parents:
+    # Check current and parent directories for namespace markers
+    for parent in [dirpath, *dirpath.parents]:
         init_file = parent / "__init__.py"
-        if init_file.exists() and "pkgutil" in init_file.read_text():
-            return True
-    # Check for PEP 420 namespace (no __init__.py)
+        if init_file.exists():
+            content = init_file.read_text()
+            if "pkgutil" in content:
+                return True
+            # Not empty init file means regular package
+            if len(content.strip()) > 0:
+                return False
+    
+    # PEP 420 namespace (no __init__.py in directory or parents)
     return not any(f.name == "__init__.py" for f in dirpath.glob("**/*"))
 
 

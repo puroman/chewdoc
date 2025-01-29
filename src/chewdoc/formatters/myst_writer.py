@@ -58,12 +58,11 @@ class MystWriter:
         ]
         
         for mod in package_data["modules"]:
-            self.current_module = mod.copy()  # Set module context
-            module = mod if isinstance(mod, dict) else {"name": str(mod)}
-            module.setdefault("internal_deps", [])
-            content.append(f"## {module['name']}\n")
-            content.append(self._format_module_content(module))
-            
+            # Ensure module is always a dictionary
+            module_data = mod if isinstance(mod, dict) else {"name": str(mod)}
+            self.current_module = module_data.copy()
+            content.append(f"- [{module_data['name']}]({module_data['name']}.md)")
+        
         return "\n".join(content)
 
     def _format_module_content(self, module: dict) -> str:
@@ -347,3 +346,7 @@ class MystWriter:
                     raise ValueError(f"Error formatting method {method_name}") from e
         
         return "\n".join(content)
+
+def generate_docs(package_info: dict, output_path: Path) -> None:
+    writer = MystWriter()
+    writer.generate(package_info, output_path)

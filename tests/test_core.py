@@ -1,10 +1,12 @@
 import ast
 from pathlib import Path
-from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages
+from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages, is_namespace_package, _find_constants, ChewdocConfig
 import pytest
 from unittest.mock import Mock, patch
 import subprocess
 from unittest.mock import mock_open
+import textwrap
+from src.chewdoc.formatters.myst_writer import generate_docs
 
 def test_get_module_name():
     file_path = Path("src/mypkg/modules/test.py")
@@ -150,3 +152,67 @@ def test_get_package_name_versioned():
     """Test version-stripping in package names"""
     path = Path("/path/to/my-pkg-1.2.3")
     assert _get_package_name(path) == "my-pkg"
+
+def test_is_namespace_package(tmp_path):
+    """Test namespace package detection logic"""
+    # Test pkgutil-style namespace
+    pkg_path = tmp_path / "ns_pkg"
+    pkg_path.mkdir()
+    init_file = pkg_path / "__init__.py"
+    init_file.write_text("__path__ = __import__('pkgutil').extend_path(__path__, __name__)\n")
+    assert is_namespace_package(pkg_path) is True
+
+    # Test PEP 420 namespace (no __init__.py)
+    empty_pkg = tmp_path / "empty_ns"
+    empty_pkg.mkdir()
+    assert is_namespace_package(empty_pkg) is True
+
+    # Test regular package with non-empty init
+    reg_pkg = tmp_path / "regular_pkg"
+    reg_pkg.mkdir()
+    (reg_pkg / "__init__.py").write_text("__version__ = '1.0'")
+    assert is_namespace_package(reg_pkg) is False
+
+def test_find_constants():
+    """Test constant finding with type inference"""
+    node = ast.parse(textwrap.dedent("""
+        MAX_LIMIT = 100
+        DEFAULT_NAME: str = 'test'
+        __version__ = '1.0'
+    """))
+    constants = _find_constants(node, ChewdocConfig())
+    assert len(constants) == 3
+    assert constants["MAX_LIMIT"]["type"] == "int"
+    assert constants["DEFAULT_NAME"]["type"] == "str"
+    assert constants["__version__"]["value"] == "'1.0'"
+
+def test_generate_docs_minimal(tmp_path):
+    """Test doc generation with minimal valid input"""
+    package_info = {
+        "package": "minimal",
+        "modules": [{"name": "mod1"}],
+        "config": {}
+    }
+    generate_docs(package_info, tmp_path)
+    assert (tmp_path / "index.md").exists()
+
+def test_analyze_package_error_handling(tmp_path):
+    """Test error handling in package analysis"""
+    test_path = tmp_path / "valid_path"
+    test_path.mkdir()
+    
+    with patch("pathlib.Path.exists") as mock_exists, \
+         patch("src.chewdoc.core.process_modules") as mock_process:
+        mock_exists.return_value = True
+        mock_process.side_effect = RuntimeError("Simulated failure")
+        with pytest.raises(RuntimeError):
+            analyze_package(str(test_path), is_local=True)
+
+def test_find_python_packages_edge_cases(tmp_path):
+    """Test package finding with unusual directory structures"""
+    # Test versioned parent directory
+    versioned_path = tmp_path / "pkg-v1.2.3" / "pkg" / "sub"
+    versioned_path.mkdir(parents=True)
+    (versioned_path / "__init__.py").write_text("")
+    packages = find_python_packages(tmp_path)
+    assert "pkg.sub" in packages
