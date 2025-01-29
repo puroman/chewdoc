@@ -3,13 +3,13 @@ import textwrap
 from pathlib import Path
 from unittest.mock import patch, mock_open
 import pytest
-from src.chewdoc.core import analyze_package
-from src.chewdoc.module_processor import DocProcessor, _find_constants, _find_imports, _get_module_name
-from src.chewdoc.formatters.myst_writer import generate_docs, MystWriter
-from src.chewdoc.config import ChewdocConfig
+from chewdoc.core import analyze_package
+from chewdoc.module_processor import DocProcessor, _find_constants, _find_imports, _get_module_name
+from chewdoc.formatters.myst_writer import generate_docs, MystWriter
+from chewdoc.config import ChewdocConfig
 import subprocess
-from src.chewdoc.package_discovery import find_python_packages, get_package_name, _is_namespace_package
-from src.chewdoc.metadata import get_pypi_metadata
+from chewdoc.package_discovery import find_python_packages, get_package_name, _is_namespace_package
+from chewdoc.metadata import get_pypi_metadata
 
 
 def test_get_module_name():
@@ -45,8 +45,8 @@ def test_analyze_local_package(tmp_path, mocker):
     (pkg_root / "module.py").write_text("def example(): pass\nclass Test: pass")
     
     # Mock namespace detection
-    mocker.patch("src.chewdoc.package_discovery._is_namespace_package", return_value=False)
-    mocker.patch("src.chewdoc.core.process_modules", return_value=[{"name": "module"}])
+    mocker.patch("chewdoc.package_discovery._is_namespace_package", return_value=False)
+    mocker.patch("chewdoc.core.process_modules", return_value=[{"name": "module"}])
     result = analyze_package(str(pkg_root), is_local=True, config=ChewdocConfig())
     assert len(result) == 1
     assert result[0]["name"] == "module"
@@ -54,9 +54,9 @@ def test_analyze_local_package(tmp_path, mocker):
 
 def test_analyze_pypi_package(tmp_path):
     with patch("subprocess.run"), \
-         patch("src.chewdoc.package_discovery.get_package_name") as mock_name, \
-         patch("src.chewdoc.core.process_modules") as mock_modules, \
-         patch("src.chewdoc.metadata._download_pypi_package") as mock_download:
+         patch("chewdoc.package_discovery.get_package_name") as mock_name, \
+         patch("chewdoc.core.process_modules") as mock_modules, \
+         patch("chewdoc.metadata._download_pypi_package") as mock_download:
         mock_name.return_value = "testpkg"
         mock_modules.return_value = [{"name": "testmod"}]
         
@@ -82,7 +82,7 @@ def test_analyze_invalid_package(tmp_path):
 
 
 def test_analyze_module_processing(tmp_path, mocker):
-    mock_process = mocker.patch("src.chewdoc.core.process_modules", return_value=[])
+    mock_process = mocker.patch("chewdoc.core.process_modules", return_value=[])
     with pytest.raises(ValueError, match="No valid modules found"):
         analyze_package(
             str(tmp_path),
@@ -95,7 +95,7 @@ def test_skip_empty_init(tmp_path):
     init_file = tmp_path / "__init__.py"
     init_file.touch()
     
-    with patch("src.chewdoc.core.process_modules") as mock_modules:
+    with patch("chewdoc.core.process_modules") as mock_modules:
         mock_modules.return_value = [{"name": "test", "path": str(init_file)}]
         # Add config parameter
         result = analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig(), verbose=True)
@@ -106,7 +106,7 @@ def test_analyze_empty_package(tmp_path):
     empty_pkg.mkdir()
     (empty_pkg / "__init__.py").touch()
     
-    with patch("src.chewdoc.core.process_modules") as mock_process:
+    with patch("chewdoc.core.process_modules") as mock_process:
         mock_process.return_value = []
         # Add config parameter
         with pytest.raises(ValueError, match="No valid modules found"):
@@ -208,7 +208,7 @@ def test_analyze_package_error_handling(tmp_path):
     test_path.mkdir()
     (test_path / "__init__.py").touch()
 
-    with patch("src.chewdoc.core.process_modules") as mock_process:
+    with patch("chewdoc.core.process_modules") as mock_process:
         mock_process.side_effect = RuntimeError("Simulated failure")
         with pytest.raises(RuntimeError, match="Simulated failure"):
             analyze_package(
