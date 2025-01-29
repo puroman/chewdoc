@@ -100,4 +100,3 @@ Please see our [contribution guidelines](CONTRIBUTING.md) for more details.
 ---
 
 _MIT Licensed | Part of ongoing research into API documentation systems and agentic workflow automation_
-
