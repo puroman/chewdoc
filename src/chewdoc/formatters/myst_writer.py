@@ -236,7 +236,11 @@ class MystWriter:
             
         if isinstance(returns_node, dict):  # Handle serialized format
             returns_node = ast.parse(returns_node['value']).body[0].value if returns_node else None
-            
+        
+        # Handle type constants directly
+        if isinstance(returns_node, ast.Constant) and isinstance(returns_node.value, type):
+            returns_node = ast.Name(id=returns_node.value.__name__)
+        
         return format_function_signature(
             args=args_node,
             returns=returns_node,
