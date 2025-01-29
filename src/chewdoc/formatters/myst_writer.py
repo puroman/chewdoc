@@ -322,13 +322,9 @@ class MystWriter:
                 ["## Examples\n", self._format_usage_examples(module["examples"])]
             )
 
-        # Add API Reference section if there are classes, functions, or variables
+        # Add API Reference section if there are classes or functions
         type_info = module.get("type_info", {})
-        if (
-            type_info.get("classes")
-            or type_info.get("functions")
-            or type_info.get("variables")
-        ):
+        if type_info.get("classes") or type_info.get("functions"):
             content.append("\n## API Reference\n")
 
             # Add variables
@@ -357,10 +353,26 @@ class MystWriter:
             # Add functions
             if type_info.get("functions"):
                 for func_name, func_info in type_info["functions"].items():
-                    content.append(f"### {func_name}")
-                    if func_info.get("doc"):
-                        content.append(func_info["doc"])
-                    content.append("")
+                    try:
+                        signature = self._format_function_signature(func_info)
+                        content.append(f"## `{func_name}{signature}`")
+                        if func_info.get("doc"):
+                            content.append(func_info["doc"])
+                        content.append("")
+                    except ValueError as e:
+                        logger.warning(f"Failed to format function {func_name}: {e}")
+                        content.append(f"### {func_name}")
+                        if func_info.get("doc"):
+                            content.append(func_info["doc"])
+                        content.append("")
+        # Add variables section outside of API Reference if only variables exist
+        elif type_info.get("variables"):
+            content.append("\n### Variables\n")
+            for var_name, var_info in type_info["variables"].items():
+                content.append(
+                    f"- `{var_name}`: {var_info.get('value', 'Unknown')}"
+                )
+            content.append("")
 
         return "\n".join(content)
 
