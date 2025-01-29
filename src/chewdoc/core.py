@@ -358,37 +358,28 @@ def _find_imports(node: ast.AST, package_name: str) -> List[Dict]:
     stdlib_modules = sys.stdlib_module_names
     
     for stmt in ast.walk(node):
-        if isinstance(stmt, ast.ImportFrom):
-            # Handle relative imports correctly
-            module_parts = []
-            if stmt.module:
-                module_parts = stmt.module.split('.')
-            
-            # Build full module path
-            if stmt.level > 0:  # Relative import
-                base_module = package_name.split('.')
-                if stmt.level > 1:
-                    base_module = base_module[:-(stmt.level - 1)]
-                full_module = '.'.join(base_module + module_parts)
-            else:
-                full_module = stmt.module or ""
-
+        if isinstance(stmt, (ast.Import, ast.ImportFrom)):
             for alias in stmt.names:
-                full_path = f"{full_module}.{alias.name}" if full_module else alias.name
-                import_type = "internal" if full_path.startswith(package_name) else "external"
+                full_path = alias.name
+                if isinstance(stmt, ast.ImportFrom) and stmt.module:
+                    full_path = f"{stmt.module}.{alias.name}"
                 
-                if import_type == "internal":
-                    imports.append({
-                        "full_path": full_path[len(package_name)+1:],
-                        "type": "internal",
-                        "name": alias.name
-                    })
-
-        elif isinstance(stmt, ast.Import):
-            for alias in stmt.names:
-                # Existing external/stdlib handling
-                ...
-    
+                # Split the first component for stdlib check
+                root_module = full_path.split('.')[0]
+                
+                # Determine import type
+                if root_module in stdlib_modules:
+                    import_type = "stdlib"
+                elif full_path.startswith(package_name):
+                    import_type = "internal"
+                else:
+                    import_type = "external"
+                
+                imports.append({
+                    "name": alias.name,
+                    "full_path": full_path,
+                    "type": import_type
+                })
     return imports
 
 
