@@ -10,6 +10,8 @@ from datetime import datetime
 import click
 import sys
 import logging
+import re
+import textwrap
 
 try:
     import tomli
@@ -17,9 +19,8 @@ except ImportError:
     import tomllib as tomli  # Python 3.11+
 from src.chewdoc.formatters.myst_writer import MystWriter
 from chewdoc.utils import get_annotation, infer_responsibilities, validate_ast, find_usage_examples, format_function_signature, extract_constant_values
-import re
-from chewdoc.constants import AST_NODE_TYPES
 import fnmatch
+from chewdoc.constants import AST_NODE_TYPES
 from chewdoc.config import ChewdocConfig, load_config
 
 logger = logging.getLogger(__name__)
@@ -492,30 +493,23 @@ def _get_package_name(path_part: Path) -> str:
     return re.split(r"[-_]v?\d+(?:\.\d+)*", name, maxsplit=1)[0]
 
 
-def find_python_packages(root_dir: Path) -> Dict[str, dict]:
-    """Find Python packages including namespace packages"""
+def find_python_packages(root_dir: Path) -> dict:
     packages = {}
-    for dirpath in root_dir.glob("**/"):
-        if dirpath.is_dir():
-            rel_path = dirpath.relative_to(root_dir)
-            # Filter out versioned directory names before processing
-            clean_parts = []
-            for part in rel_path.parts:
-                if re.search(r"[-_]v?\d+(\.\d+)+$", part):
-                    continue  # Skip versioned directories
-                clean_parts.append(_get_package_name(Path(part)))
+    
+    for path in root_dir.rglob("**/*.py"):
+        if path.name == "__init__.py":
+            package_path = path.parent
+            rel_path = package_path.relative_to(root_dir)
             
-            pkg_name = ".".join(clean_parts)
-            if not pkg_name or any(p in packages for p in dirpath.parents):
-                continue
-                
-            if (dirpath / "__init__.py").exists() or is_namespace_package(dirpath):
-                packages[pkg_name] = {
-                    "name": pkg_name,
-                    "path": str(dirpath),
-                    "is_package": True,
-                    "is_namespace": is_namespace_package(dirpath)
-                }
+            # Improved version stripping with lookahead
+            clean_parts = [
+                re.sub(r'(?:-[vV]?\d+\.\d+\.\d+)?$', '', part)
+                for part in rel_path.parts
+            ]
+            
+            package_name = ".".join(clean_parts)
+            packages[package_name] = str(package_path)
+    
     return packages
 
 
@@ -565,31 +559,29 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Any]:
 
 
 def _find_usage_examples(node: ast.AST) -> list:
-    """Extract usage examples with better detection"""
+    """Extract usage examples with improved pattern matching."""
     examples = []
     
     for n in ast.walk(node):
-        # Detect doctest-style examples in docstrings
         if isinstance(n, (ast.FunctionDef, ast.ClassDef, ast.Module)):
-            docstring = ast.get_docstring(n)
-            if docstring and any(trigger in docstring for trigger in (">>>", "Example:", "Usage:")):
-                examples.append({
-                    "type": "doctest",
-                    "name": f"In {n.name}" if hasattr(n, 'name') else "Module-level",
-                    "content": docstring,
-                    "line": n.lineno
-                })
-        
-        # Detect test functions with assert statements
-        if isinstance(n, ast.FunctionDef) and n.name.lower().startswith("test"):
-            test_body = "\n".join(ast.unparse(stmt) for stmt in n.body)
-            examples.append({
-                "type": "pytest",
-                "name": n.name,
-                "line": n.lineno,
-                "content": f"def {n.name}():\n{test_body}"
-            })
-    
+            docstring = ast.get_docstring(n, clean=False)  # Keep original formatting
+            if docstring:
+                # Find all indented code blocks
+                code_blocks = re.findall(
+                    r'^(?:>>>|\.\.\.|Example:|Usage:)(\n\s+.*?)+?(?=\n\S|\Z)',
+                    docstring,
+                    re.MULTILINE | re.DOTALL
+                )
+                
+                for block in code_blocks:
+                    examples.append({
+                        "type": "doctest",
+                        "code": textwrap.dedent(block[0]).strip(),
+                        "context": f"In {n.name}" if hasattr(n, 'name') else "Module-level",
+                        "line": n.lineno
+                    })
+                    logger.debug(f"📝 Found example in {n.name} at line {n.lineno}")
+
     return examples
 
 
@@ -729,46 +721,30 @@ def _process_file(file_path: Path, package_root: Path, config: ChewdocConfig) ->
 
 
 class DocProcessor:
-    def __init__(self, config: dict, examples: list):
-        self.config = config
-        self.examples = examples
-        print(f"🔍 Example Types: {[type(e).__name__ for e in self.examples]}")
+    def __init__(self, config: dict, examples):
+        # Filter invalid examples immediately
+        self.examples = [ex for ex in (examples if isinstance(examples, list) else [examples])
+                        if isinstance(ex, (str, dict))]
         self._process_examples()
-        print(f"EXAMPLES AFTER PROCESSING: {self.examples}")  # Temporary debug
 
     def _process_examples(self) -> None:
-        """Process examples with exhaustive type checking."""
         validated = []
-        
         for idx, example in enumerate(self.examples, 1):
-            try:
-                # Handle string examples
-                if isinstance(example, str):
-                    validated.append({
-                        "code": example,
-                        "output": "",
-                        "type": "doctest"
-                    })
-                    continue
-                    
-                # Require dictionary format
-                if not isinstance(example, dict):
-                    raise TypeError(f"Expected dict, got {type(example).__name__}")
-                    
-                # Validate required fields
-                if "code" not in example and "content" not in example:
-                    raise ValueError("Missing 'code' or 'content' field")
-                    
-                # Normalize fields
+            # Handle string examples
+            if isinstance(example, str):
+                validated.append({
+                    "code": example.strip(),
+                    "output": "",
+                    "type": "doctest"
+                })
+                continue
+                
+            # Validate dict examples
+            if "code" in example or "content" in example:
                 validated.append({
                     "type": example.get("type", "doctest"),
                     "code": str(example.get("code", example.get("content", ""))).strip(),
                     "output": str(example.get("output", example.get("result", ""))).strip()
                 })
-                
-            except (TypeError, ValueError) as e:
-                logger.warning(f"Invalid example #{idx}: {e}")
-                continue
         
         self.examples = validated
-        logger.info(f"Validated {len(validated)}/{len(self.examples)} examples")

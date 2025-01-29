@@ -66,8 +66,7 @@ def chew(source, version, local, output, verbose):
         return 0  # Explicit success return code
 
     except Exception as e:
-        logger.error(f"Documentation generation failed: {str(e)}")
+        logger.error(f"❌ Error: {str(e)}")
         if verbose:
-            logger.error("🚨 Full error context:")
-            logger.error(traceback.format_exc())
+            logger.error(f"Stack trace:\n{traceback.format_exc()}")
         sys.exit(1)

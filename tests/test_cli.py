@@ -118,7 +118,8 @@ def test_cli_exception_handling(tmp_path):
     with patch("src.chewdoc.cli.analyze_package") as mock_analyze:
         mock_analyze.side_effect = ValueError("Test error")
         result = runner.invoke(cli, ["chew", str(tmp_path), "--local"])
-        assert "❌ Error: Test error" in result.output
+        assert result.exit_code == 1
+        assert "Test error" in result.output
 
 
 def minimal_valid_package():

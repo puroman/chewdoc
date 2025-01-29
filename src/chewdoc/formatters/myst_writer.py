@@ -217,54 +217,26 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with validation."""
-        args_node = func_info.get('args')
-        return_type = func_info.get('returns')
+        """Format function signature handling serialized AST data."""
+        args_data = func_info.get('args')
+        return_data = func_info.get('returns')
         
-        # Add type checking for AST nodes
-        if args_node and not isinstance(args_node, ast.arguments):
-            logger.error(f"Invalid args type: {type(args_node).__name__}")
-            args_node = None
-        
-        if return_type and not isinstance(return_type, ast.AST):
-            logger.error(f"Invalid return type: {type(return_type).__name__}")
-            return_type = None
-        
+        # Handle serialized AST data
         return format_function_signature(
-            args=args_node,
-            returns=return_type,
+            args=args_data,
+            returns=return_data,
             config=self.config
         )
 
-    def _format_usage_examples(self, examples: list, config: ChewdocConfig) -> str:
-        """Format examples with redundant type checking and detailed error context."""
-        output = ["## Usage Examples"]
-        
-        for idx, ex in enumerate(examples, 1):
-            try:
-                # Final type enforcement
-                example = (
-                    ex if isinstance(ex, dict) 
-                    else {"code": str(ex), "output": "", "type": "doctest"}
-                )
-                
-                # Validate critical fields
-                if not isinstance(example.get("code", ""), str):
-                    raise ValueError(f"Example {idx} has invalid code type: {type(example.get('code')).__name__}")
-                    
-                # Formatting logic
-                code_block = f"```python\n{example['code']}\n```"
-                output.append(code_block)
-                
-                if example.get("output"):
-                    output.append(f"**Output**:\n```\n{example['output']}\n```")
-                    
-            except Exception as e:
-                logger.error(f"💥 Critical error formatting example {idx}: {str(e)}")
-                logger.debug(f"Problematic example: {ex} (Type: {type(ex).__name__})")
-                continue
-            
-        return "\n\n".join(output) if len(output) > 1 else ""
+    def _format_usage_examples(self, examples: list) -> str:
+        output = []
+        for ex in examples:
+            if isinstance(ex, dict):
+                code = ex.get('code', ex.get('content', ''))
+                output.append(f"```python\n{code}\n```")
+            elif isinstance(ex, str):
+                output.append(f"```python\n{ex}\n```")
+        return "\n\n".join(output)
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -291,39 +263,20 @@ class MystWriter:
         return infer_responsibilities(module)
 
     def _format_module(self, module: dict) -> str:
-        """Format a single module's documentation"""
-        content = [
-            f"# {module['name']}\n",
-            f"```{{module}} {module['name']}\n"
-        ]
+        """Format module documentation with error resilience"""
+        content = [f"# {module['name']}\n```{{module}} {module['name']}\n"]
         
-        if module.get('docstrings'):
-            content.append(f"\n{module['docstrings'].get('module', '')}\n")
-        
+        # Handle examples safely
         if module.get('examples'):
             content.append("\n## Examples\n")
             for example in module['examples']:
-                content.append(f"```python\n{example['content']}\n```\n")
+                try:
+                    code = example.get('code') or example.get('content') or str(example)
+                    content.append(f"```python\n{code}\n```\n")
+                except Exception as e:
+                    logger.error(f"Failed to format example: {e}")
+                    continue
         
-        # Add variables section before API Reference
-        if module.get('type_info', {}).get('variables'):
-            content.append("\n### Variables\n")
-            content.append("\n".join(
-                f"- `{var}`: {info if isinstance(info, str) else info.get('value', '')}"
-                for var, info in module['type_info']['variables'].items()
-            ))
-        
-        # Only add API Reference if we have classes/functions
-        has_api_content = any(
-            module['type_info'].get(k) 
-            for k in ("classes", "functions")
-        ) if module.get('type_info') else False
-        
-        if has_api_content:
-            content.append("\n## API Reference\n")
-            content.append(self._format_api_reference(module['type_info']))
-        
-        content.append("\n```\n")
         return "\n".join(content)
 
     def _format_classes(self, classes: dict) -> str:

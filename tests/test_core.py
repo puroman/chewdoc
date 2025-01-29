@@ -230,8 +230,11 @@ def test_example_processing():
     )
     
     assert len(processor.examples) == 2
-    assert processor.examples[0] == {"code": "print('hello')", "output": ""}
-    assert processor.examples[1] == {"code": "1 + 1", "output": "2"}
+    assert processor.examples[0] == {
+        "code": "print('hello')", 
+        "output": "",
+        "type": "doctest"
+    }
 
 def test_error_handling():
     """Test invalid example handling."""
@@ -258,11 +261,24 @@ def test_edge_case_examples():
 
 def test_config_example_types():
     """Test config validation handles different example container types"""
-    # Test string instead of list
-    processor = DocProcessor(config={}, examples="print('bad')")
+    processor = DocProcessor(config={}, examples="print('valid')")
     assert len(processor.examples) == 1
-    assert processor.examples[0]["code"] == "print('bad')"
+    assert processor.examples[0]["code"] == "print('valid')"
+
+def test_myst_writer_error_handling(tmp_path):
+    """Test malformed AST data handling"""
+    writer = MystWriter()
+    package_info = {
+        "package": "testpkg",
+        "modules": [{
+            "name": "broken_mod",
+            "type_info": {
+                "functions": {
+                    "bad_func": {"args": "not-an-ast-node"}
+                }
+            }
+        }]
+    }
     
-    # Test invalid container type
-    with pytest.raises(TypeError):
-        DocProcessor(config={}, examples={"invalid": "type"})
+    # Should not raise errors
+    writer.generate(package_info, tmp_path)

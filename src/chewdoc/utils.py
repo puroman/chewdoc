@@ -8,28 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
-    """Extract type annotation from an AST node (moved from core.py)"""
+    """Get type annotation with simplified representation."""
     if isinstance(node, ast.Name):
-        return config.known_types.get(node.id, node.id)
-    elif isinstance(node, ast.Constant):
-        return str(node.value)
-    elif isinstance(node, ast.Subscript):
-        value = get_annotation(node.value, config)
-        if isinstance(node.slice, ast.Ellipsis):
-            return f"{value}[...]"
-        slice_val = get_annotation(node.slice, config)
-        return f"{value}[{slice_val}]"
-    elif isinstance(node, ast.Attribute):
-        value = get_annotation(node.value, config)
-        return f"{value}.{node.attr}"
-    elif isinstance(node, ast.BinOp):
-        left = get_annotation(node.left, config)
-        right = get_annotation(node.right, config)
-        return f"{left} | {right}"
-    elif isinstance(node, ast.Ellipsis):
-        return "..."
-    else:
-        return str(node)
+        return node.id
+    if isinstance(node, ast.Subscript):
+        return f"{get_annotation(node.value, config)}[{get_annotation(node.slice, config)}]"
+    if isinstance(node, ast.Constant):
+        return str(node.value).split("'")[1] if "class" in str(node.value) else str(node.value)
+    return "Any"
 
 
 def infer_responsibilities(module: dict) -> str:
@@ -120,23 +106,33 @@ def find_usage_examples(node: ast.AST) -> list:
     return []  # TODO: Add actual example extraction logic
 
 
-def format_function_signature(args: Optional[ast.arguments], returns: Optional[ast.AST], config: ChewdocConfig) -> str:
-    """Format function signature with enhanced type safety."""
+def format_function_signature(
+    args: Optional[Union[ast.arguments, dict]], 
+    returns: Optional[Union[ast.AST, str]],
+    config: ChewdocConfig
+) -> str:
+    """Format function signature with serialization support."""
     params = []
     
-    # Validate arguments structure
-    if args and isinstance(args, ast.arguments) and hasattr(args, 'args'):
+    # Handle serialized arguments
+    if isinstance(args, dict):
+        params = [f"{name}{': ' + typ if typ else ''}" 
+                for name, typ in args.get("arg_types", {}).items()]
+    elif args and isinstance(args, ast.arguments) and hasattr(args, 'args'):
         for arg in args.args:
             try:
-                name = arg.arg  # type: ignore
+                name = arg.arg
                 annotation = get_annotation(arg.annotation, config) if arg.annotation else ""
-                param = f"{name}{': ' + annotation if annotation else ''}"
-                params.append(param)
-            except AttributeError as e:
-                logger.error(f"Invalid argument node: {e}")
+                params.append(f"{name}{': ' + annotation if annotation else ''}")
+            except AttributeError:
                 continue
-    
-    return_type = get_annotation(returns, config) if returns else ""
+
+    return_type = ""
+    if isinstance(returns, str):
+        return_type = returns
+    elif returns:
+        return_type = get_annotation(returns, config)
+        
     signature = f"({', '.join(params)})" if params else "()"
     return signature + (f" -> {return_type}" if return_type else "")
 
