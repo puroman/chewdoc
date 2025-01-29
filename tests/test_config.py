@@ -24,3 +24,26 @@ def test_load_invalid_config(tmp_path):
 
     with pytest.raises(ValidationError):
         load_config(bad_config)
+
+
+def test_config_validation():
+    """Test config validation with invalid values"""
+    with pytest.raises(ValueError):
+        ChewdocConfig(max_example_lines=-5)
+
+    with pytest.raises(ValueError):
+        ChewdocConfig(theme="invalid_theme")
+
+
+def test_config_from_toml(tmp_path):
+    """Test loading config from TOML file"""
+    config_file = tmp_path / "chewdoc.toml"
+    config_file.write_text("""
+    [tool.chewdoc]
+    max_example_lines = 20
+    theme = "special"
+    """)
+    
+    config = ChewdocConfig.from_toml(config_file)
+    assert config.max_example_lines == 20
+    assert config.theme == "special"

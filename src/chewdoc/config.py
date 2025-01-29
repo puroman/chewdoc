@@ -10,8 +10,15 @@ from chewdoc.constants import (  # Updated imports
     TEMPLATE_VERSION,
     TYPE_ALIASES,
 )
-import tomli
 import logging
+from importlib import resources
+
+try:
+    # Python 3.11+ standard library
+    import tomllib
+except ModuleNotFoundError:
+    # Fallback for Python <3.11
+    import tomli as tomllib
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +51,12 @@ class ChewdocConfig(BaseModel):
     )
 
     model_config = ConfigDict(extra="forbid")
+
+    @classmethod
+    def from_toml(cls, path: Path) -> "ChewdocConfig":
+        """Load config from TOML file"""
+        config_data = tomllib.load(path)
+        return cls(**config_data.get("tool", {}).get("chewdoc", {}))
 
 
 class ExampleSchema(BaseModel):
@@ -87,7 +100,7 @@ def load_config(path: Optional[Path] = None) -> ChewdocConfig:
     """Load configuration from file or return defaults"""
     if path and path.exists():
         with open(path, "rb") as f:
-            config_data = tomli.load(f).get("tool", {}).get("chewdoc", {})
+            config_data = tomllib.load(f).get("tool", {}).get("chewdoc", {})
 
             # Add type enforcement for examples
             raw_examples = config_data.get("examples", [])

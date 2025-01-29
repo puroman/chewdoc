@@ -7,6 +7,7 @@ from src.chewdoc.utils import (
     format_function_signature,
     extract_constant_values,
     validate_ast,
+    get_annotation,
 )
 
 
@@ -58,3 +59,18 @@ def test_validate_ast_empty_with_docstring():
     """Test module with only a docstring"""
     node = ast.parse('"Module docstring"')
     validate_ast(node, Path("doconly.py"))  # Should not raise
+
+
+def test_get_annotation_complex():
+    """Test annotation formatting with complex types"""
+    node = ast.parse("def f() -> Dict[str, List[int]]: pass").body[0].returns
+    result = get_annotation(node, ChewdocConfig())
+    assert "Dict[str, List[int]]" in result
+
+
+def test_validate_ast_with_errors():
+    """Test AST validation with error nodes"""
+    tree = ast.parse("try: pass\nexcept: pass")
+    result = validate_ast(tree)
+    assert not result.valid
+    assert "Try" in result.reason

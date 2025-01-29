@@ -303,3 +303,13 @@ def test_myst_writer_error_handling(tmp_path):
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "broken_mod.md").read_text()
     assert "## `bad_func()" in content
+
+
+def test_process_invalid_module():
+    """Test module processing with invalid AST"""
+    processor = DocProcessor(config=ChewdocConfig(), examples=[])
+    invalid_ast = ast.parse("1 + 'string'")
+    
+    with patch('ast.parse', return_value=invalid_ast):
+        result = processor.process_module(Path("fake.py"))
+        assert "type_info" in result

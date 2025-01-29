@@ -8,18 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
-    """Get type annotation with simplified representation."""
-    if isinstance(node, ast.Name):
-        return node.id
+    """Get type annotation with full type resolution"""
     if isinstance(node, ast.Subscript):
-        return f"{get_annotation(node.value, config)}[{get_annotation(node.slice, config)}]"
-    if isinstance(node, ast.Constant):
-        return (
-            str(node.value).split("'")[1]
-            if "class" in str(node.value)
-            else str(node.value)
-        )
-    return "Any"
+        base = get_annotation(node.value, config)
+        if isinstance(node.slice, ast.Tuple):
+            params = ", ".join(get_annotation(el, config) for el in node.slice.elts)
+        else:
+            params = get_annotation(node.slice, config)
+        return f"{base}[{params}]"
+    return ast.unparse(node).strip()
 
 
 def infer_responsibilities(module: dict) -> str:
@@ -68,7 +65,7 @@ def infer_responsibilities(module: dict) -> str:
     return "\n- ".join([""] + responsibilities)
 
 
-def validate_ast(node: ast.AST, module_path: Path) -> None:
+def validate_ast(node: ast.AST) -> None:
     """Validate AST structure for documentation processing"""
     if not isinstance(node, ast.AST):
         raise TypeError(f"Invalid AST - expected node, got {type(node).__name__}")
@@ -81,7 +78,7 @@ def validate_ast(node: ast.AST, module_path: Path) -> None:
         raise ValueError("Invalid AST structure - missing body attribute")
 
     # Allow __init__.py files with only pass statements
-    is_init_file = module_path.name == "__init__.py"
+    is_init_file = node.name == "__init__.py"
     if is_init_file:
         if all(isinstance(stmt, ast.Pass) for stmt in node.body):
             return
@@ -114,38 +111,26 @@ def find_usage_examples(node: ast.AST) -> list:
 
 
 def format_function_signature(
-    args: Optional[Union[ast.arguments, dict]],
-    returns: Optional[Union[ast.AST, str]],
-    config: ChewdocConfig,
+    args: ast.arguments, returns: Optional[ast.AST], config: ChewdocConfig
 ) -> str:
-    """Format function signature with serialization support."""
-    params = []
-
-    # Handle serialized arguments
-    if isinstance(args, dict):
-        params = [
-            f"{name}{': ' + typ if typ else ''}"
-            for name, typ in args.get("arg_types", {}).items()
-        ]
-    elif args and isinstance(args, ast.arguments) and hasattr(args, "args"):
-        for arg in args.args:
-            try:
-                name = arg.arg
-                annotation = (
-                    get_annotation(arg.annotation, config) if arg.annotation else ""
-                )
-                params.append(f"{name}{': ' + annotation if annotation else ''}")
-            except AttributeError:
-                continue
-
-    return_type = ""
-    if isinstance(returns, str):
-        return_type = returns
-    elif returns:
-        return_type = get_annotation(returns, config)
-
-    signature = f"({', '.join(params)})" if params else "()"
-    return signature + (f" -> {return_type}" if return_type else "")
+    """Format function signature with proper argument handling"""
+    args_list = []
+    defaults = [None] * (len(args.args) - len(args.defaults)) + list(args.defaults)
+    
+    for arg, default in zip(args.args, defaults):
+        arg_str = arg.arg
+        if arg.annotation:
+            arg_str += f": {get_annotation(arg.annotation, config)}"
+        if default:
+            default_src = ast.unparse(default).strip()
+            arg_str += f" = {default_src}"
+        args_list.append(arg_str)
+    
+    return_str = ""
+    if returns:
+        return_str = f" -> {get_annotation(returns, config)}"
+        
+    return f"({', '.join(args_list)}){return_str}"
 
 
 def _find_imports(node: ast.AST) -> list:

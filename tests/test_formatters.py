@@ -104,19 +104,24 @@ def test_myst_writer_error_handling(tmp_path):
     writer = MystWriter()
     package_info = {
         "package": "testpkg",
-        "modules": [
-            {
-                "name": "broken_mod",
-                "type_info": {"functions": {"bad_func": {"args": "not-an-ast-node"}}},
+        "modules": [{
+            "name": "broken_mod",
+            "type_info": {
+                "functions": {
+                    "bad_func": {
+                        "args": "invalid",
+                        "returns": "str"
+                    }
+                }
             }
-        ],
+        }]
     }
 
-    # Should generate docs with warning
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "broken_mod.md").read_text()
+    
     assert "bad_func" in content
-    assert "Error formatting signature" in content
+    assert "Error formatting signature: Unsupported arguments type: str" in content
 
 
 def test_myst_writer_invalid_examples(tmp_path, caplog):
@@ -220,13 +225,20 @@ def test_myst_writer_format_module_error_handling():
     writer = MystWriter()
     writer.package_data = {"package": "testpkg"}
     
-    # Should handle error gracefully
     result = writer._format_module_content({
         "name": "bad_module",
-        "type_info": {"functions": {"bad_func": {"args": "invalid"}}}
+        "type_info": {
+            "functions": {
+                "bad_func": {
+                    "args": {"args": "not-a-list"},
+                    "returns": "str"
+                }
+            }
+        }
     })
+    
     assert "bad_func" in result
-    assert "Error formatting signature" in result
+    assert "Invalid arguments structure" in result
 
 
 def test_myst_writer_example_validation():
@@ -313,3 +325,24 @@ def test_myst_writer_invalid_function_args(tmp_path):
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "bad_args.md").read_text()
     assert "## `broken_func() -> str`" in content
+
+
+def test_format_empty_class():
+    """Test class formatting with missing methods"""
+    writer = MystWriter()
+    result = writer._format_class("EmptyClass", {"doc": "No methods"})
+    assert "EmptyClass" in result
+    assert "No methods" in result
+
+
+def test_format_function_with_ast_arguments():
+    """Test function formatting with real AST arguments"""
+    writer = MystWriter()
+    func_ast = ast.parse("def test(a: int, b: str = '') -> bool: pass").body[0]
+    
+    result = writer._format_function("test", {
+        "args": func_ast.args,
+        "returns": func_ast.returns
+    })
+    
+    assert "test(a: int, b: str = '') -> bool" in result

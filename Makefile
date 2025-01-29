@@ -24,17 +24,19 @@ MARKER_OPTION = $(if $(TEST_MARKERS),-m "$(TEST_MARKERS)",)
 
 help:
 	@echo "Available commands:"
-	@echo "  make venv          - Create virtual environment and install dependencies"
-	@echo "  make test         - Run tests (default)"
-	@echo "  make test-cov     - Run tests with coverage report"
-	@echo "  make test-html    - Run tests with HTML coverage report"
-	@echo "  make test-xml     - Run tests with XML coverage report"
+	@echo "  make install       - Install all dependencies (prod + dev)"
+	@echo "  make install-prod  - Install production dependencies only"
+	@echo "  make install-dev   - Install development dependencies only"
+	@echo "  make test          - Run tests"
+	@echo "  make test-cov      - Run tests with coverage report"
+	@echo "  make test-html     - Run tests with HTML coverage report"
+	@echo "  make test-xml      - Run tests with XML coverage report"
 	@echo "  make test-parallel - Run tests in parallel"
-	@echo "  make test-watch   - Run tests in watch mode"
-	@echo "  make docs         - Generate documentation"
-	@echo "  make lint         - Run linting checks"
-	@echo "  make format       - Format code"
-	@echo "  make clean        - Clean build artifacts"
+	@echo "  make test-watch    - Run tests in watch mode"
+	@echo "  make docs          - Generate documentation"
+	@echo "  make lint          - Run linting checks"
+	@echo "  make format        - Format code"
+	@echo "  make clean         - Clean build artifacts"
 	@echo ""
 	@echo "Parameters:"
 	@echo "  TEST_PATH         - Path to test files (default: tests/)"
@@ -44,13 +46,24 @@ help:
 	@echo "  COVERAGE_FORMAT   - Coverage report format (term-missing, html, xml)"
 	@echo "  COVERAGE_MIN      - Minimum coverage percentage (default: 80)"
 
-venv venv-reset:
+venv:
 	@echo "Creating virtual environment..."
 	rm -rf $(VENV)
 	python3 -m venv $(VENV)
-	@echo "Installing base tooling..."
-	$(PYTHON) -m pip install -q --disable-pip-version-check --no-cache-dir uv
-	@echo "Installing project dependencies..."
+	@echo "Installing uv..."
+	$(PYTHON) -m pip install uv
+	@echo "Installing base dependencies..."
+	$(UV) pip install -e .[dev]
+
+# Installation targets
+install: venv install-prod install-dev
+
+install-prod: venv
+	@echo "Installing production dependencies..."
+	$(UV) pip install -e .
+
+install-dev: venv
+	@echo "Installing development dependencies..."
 	$(UV) pip install -e .[dev]
 
 test: venv

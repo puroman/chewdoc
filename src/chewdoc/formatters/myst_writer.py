@@ -220,34 +220,24 @@ class MystWriter:
         return "\n".join(f"- [[{m['name']}]]" for m in modules)
 
     def _format_function_signature(self, func_info: dict) -> str:
-        """Format function signature with robust type checking"""
-        try:
-            args = func_info.get("args")
-            returns = func_info.get("returns")
-
-            # Handle different argument formats
-            if isinstance(args, ast.arguments):
-                return format_function_signature(args, returns, self.config)
-            elif isinstance(args, dict):
-                # Validate args structure
-                args_list = args.get("args", [])
-                if not isinstance(args_list, list):
-                    raise ValueError("Invalid arguments structure: 'args' field must be a list")
-                
-                return format_function_signature(
-                    ast.arguments(
-                        args=[ast.arg(arg=arg) for arg in args_list],
-                        defaults=args.get("defaults", []),
-                    ),
-                    returns,
-                    self.config
-                )
-            else:
-                raise ValueError("Unsupported arguments type")
-
-        except Exception as e:
-            logger.warning(f"Failed to format function signature: {str(e)}")
-            return "()"  # Return safe default
+        """Format function signature without catching exceptions"""
+        args = func_info.get("args")
+        if isinstance(args, dict):
+            # Validate args structure
+            args_list = args.get("args", [])
+            if not isinstance(args_list, list):
+                raise ValueError(f"Invalid arguments structure: 'args' field must be a list (got {type(args_list).__name__})")
+            
+            return format_function_signature(
+                ast.arguments(
+                    args=[ast.arg(arg=arg) for arg in args_list],
+                    defaults=args.get("defaults", []),
+                ),
+                func_info.get("returns"),
+                self.config
+            )
+        else:
+            raise ValueError(f"Unsupported arguments type: {type(args).__name__}")
 
     def _format_usage_examples(self, examples: list) -> str:
         """Format usage examples with proper error handling"""
@@ -357,15 +347,7 @@ class MystWriter:
                 # Add functions
                 if type_info.get("functions"):
                     for func_name, func_info in type_info["functions"].items():
-                        try:
-                            signature = self._format_function_signature(func_info)
-                            content.append(f"## `{func_name}{signature}`")
-                            if func_info.get("doc"):
-                                content.append(func_info["doc"])
-                            content.append("")
-                        except ValueError as e:
-                            logger.warning(f"Failed to format function {func_name}: {e}")
-                            continue
+                        content.append(self._format_function(func_name, func_info))
 
             # Add variables section outside of API Reference if only variables exist
             elif type_info.get("variables"):
