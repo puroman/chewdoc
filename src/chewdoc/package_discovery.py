@@ -40,66 +40,50 @@ def get_package_name(pkg_path: Path) -> str:
     return parts[-1]
 
 def _is_namespace_package(pkg_path: Path) -> bool:
-    """Detect namespace packages (PEP 420/PEP 451) with multiple detection strategies."""
+    """Detect namespace packages more accurately"""
     init_file = pkg_path / "__init__.py"
     
-    # PEP 420 implicit namespace package (no __init__.py)
+    # PEP 420 namespace package
     if not init_file.exists():
         return True
-    
-    # Check for explicit namespace package markers
+        
+    # Check for namespace declaration
     try:
         content = init_file.read_text()
-        namespace_markers = [
-            "pkgutil.extend_path",
-            "pkg_resources.declare_namespace",
-            "__path__ = __import__('pkgutil').extend_path(__path__, __name__)"
-        ]
-        
-        # Check for namespace markers
-        if any(marker in content for marker in namespace_markers):
+        if "pkgutil" in content or "pkg_resources" in content:
             return True
+    except UnicodeDecodeError:
+        pass
         
-        # Empty or minimal __init__.py
-        if not content.strip():
-            return True
-        
-        # Check for typical namespace package content
-        lines = content.split('\n')
-        non_comment_lines = [line for line in lines if not line.strip().startswith('#')]
-        
-        # If no meaningful content beyond version or docstring, consider it a namespace package
-        meaningful_lines = [line for line in non_comment_lines if not (
-            line.strip().startswith(('__version__', '"""', "'''", 'from ', 'import ')) or
-            line.strip() == ''
-        )]
-        
-        return len(meaningful_lines) <= 0
-    except Exception:
-        # If file cannot be read, consider it a potential namespace package
-        return True
+    return False
 
-def find_python_packages(root_dir: Path, config: ChewdocConfig) -> List[dict]:
-    """Find Python packages with improved detection."""
+def find_python_packages(path: Path, config: ChewdocConfig) -> list:
+    """Find Python packages in directory with better pattern matching"""
     packages = []
     
-    for path in root_dir.rglob("*/__init__.py"):
-        if _is_excluded(path, config):
-            continue
-            
-        pkg_path = path.parent
-        full_pkg_name = _build_full_pkg_name(pkg_path, root_dir)
-        
-        if not full_pkg_name:
-            continue
-        
-        packages.append({
-            "name": full_pkg_name,
-            "path": str(pkg_path),
-            "is_namespace": _is_namespace_package(pkg_path)
-        })
-    
-    return sorted(packages, key=lambda x: x["name"])
+    # Match both regular and namespace packages
+    for p in path.glob("**/"):
+        if _is_package_dir(p, config):
+            try:
+                pkg_name = get_package_name(p)
+                if not _should_exclude(p, config.exclude_patterns):
+                    packages.append({
+                        "name": pkg_name,
+                        "path": str(p),
+                        "is_namespace": _is_namespace_package(p)
+                    })
+            except ValueError:
+                continue
+                
+    return packages
+
+def _is_package_dir(path: Path, config: ChewdocConfig) -> bool:
+    """Check if directory is a Python package"""
+    # Allow namespace packages (no __init__.py) if configured
+    if config.allow_namespace_packages:
+        return True
+    # Regular package must have __init__.py    
+    return (path / "__init__.py").exists()
 
 def _build_full_pkg_name(pkg_path: Path, root_dir: Path) -> str:
     """Construct full package name from path hierarchy"""
