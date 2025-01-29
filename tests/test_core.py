@@ -1,12 +1,21 @@
 import ast
-from pathlib import Path
-from src.chewdoc.core import _find_imports, _get_module_name, analyze_package, _get_package_name, find_python_packages, is_namespace_package, _find_constants, ChewdocConfig, DocProcessor
-import pytest
-from unittest.mock import Mock, patch
-import subprocess
-from unittest.mock import mock_open
 import textwrap
-from src.chewdoc.formatters.myst_writer import generate_docs
+from pathlib import Path
+from unittest.mock import patch, mock_open
+import pytest
+from src.chewdoc.core import (
+    analyze_package,
+    find_python_packages,
+    is_namespace_package,
+    _get_package_name,
+    _find_constants,
+    DocProcessor,
+    _find_imports,
+    _get_module_name
+)
+from src.chewdoc.formatters.myst_writer import generate_docs, MystWriter
+from src.chewdoc.config import ChewdocConfig
+import subprocess
 
 def test_get_module_name():
     file_path = Path("src/mypkg/modules/test.py")
@@ -28,42 +37,26 @@ def test_find_imports_stdlib():
     imports = _find_imports(node, "mypkg")
     assert any(i["name"] == "sys" and i["type"] == "stdlib" for i in imports)
 
-def test_analyze_local_package():
-    with patch("src.chewdoc.core._process_file") as mock_process, \
-         patch("src.chewdoc.core.process_modules") as mock_modules, \
-         patch("pathlib.Path.exists") as mock_exists:
-        mock_exists.return_value = True
-        mock_modules.return_value = [{
-            "name": "testmod",
-            "path": "tests/fixtures/valid_pkg/module.py"
-        }]
-        mock_process.return_value = {
-            "name": "testmod",
-            "path": str(Path("tests/fixtures/valid_pkg/module.py")),
-            "ast": ast.Module(body=[]),
-            "internal_deps": ["othermod"],
-            "imports": [{"name": "sys", "type": "stdlib"}],
-            "type_info": {
-                "cross_references": set(),
-                "functions": {},
-                "classes": {},
-                "variables": {}
-            },
-            "examples": [],
-            "layer": "application",
-            "role": "API interface",
-            "constants": {},
-            "docstrings": {}
-        }
-        
-        result = analyze_package(
-            source=str(Path("tests/fixtures/valid_pkg")),
-            is_local=True,
-            verbose=False
-        )
-        
-        assert "testmod" in [m["name"] for m in result["modules"]]
-        assert result["package"] == "valid_pkg"
+def test_analyze_local_package(tmp_path, mocker):
+    # Create valid package structure
+    pkg_root = tmp_path / "test_pkg"
+    pkg_root.mkdir()
+    (pkg_root / "__init__.py").touch()
+    (pkg_root / "module.py").write_text("def example(): pass")
+    
+    # Mock dependencies
+    mock_process = mocker.patch("src.chewdoc.core.process_modules")
+    mock_process.return_value = [{
+        "name": "test_pkg.module",
+        "path": str(pkg_root / "module.py"),
+        "docstrings": {"module": "Test module"}
+    }]
+    
+    result = analyze_package(source=str(pkg_root), is_local=True)
+    
+    assert "test_pkg" in result["package"]
+    assert len(result["modules"]) == 1
+    assert result["modules"][0]["name"] == "test_pkg.module"
 
 def test_analyze_pypi_package():
     with patch("subprocess.run"), \
@@ -144,7 +137,8 @@ def test_find_python_packages_namespace(tmp_path):
     pkg_path.mkdir(parents=True)
     (pkg_path / "__init__.py").write_text("")
     
-    packages = find_python_packages(tmp_path)
+    config = ChewdocConfig()
+    packages = find_python_packages(tmp_path, config)
     assert "ns_pkg.sub" in packages
     assert packages["ns_pkg.sub"]["is_package"] is True
 
@@ -214,7 +208,8 @@ def test_find_python_packages_edge_cases(tmp_path):
     versioned_path = tmp_path / "pkg-v1.2.3" / "pkg" / "sub"
     versioned_path.mkdir(parents=True)
     (versioned_path / "__init__.py").write_text("")
-    packages = find_python_packages(tmp_path)
+    config = ChewdocConfig()
+    packages = find_python_packages(tmp_path, config)
     assert "pkg.sub" in packages
 
 def test_example_processing():

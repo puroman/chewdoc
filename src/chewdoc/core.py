@@ -40,7 +40,22 @@ def analyze_package(
         >>> "requests" in result["package"]
         True
     """
-    module_path = Path(source)  # Initialize early
+    try:
+        if is_local:
+            path = Path(source).resolve()
+            if not path.exists():
+                raise ValueError(f"Invalid source path: {source}")
+                
+            if not path.is_dir() and not (path.is_file() and path.suffix == '.py'):
+                raise ValueError("Local package path must be a directory or a Python file")
+        else:
+            # For PyPI packages, we'll download and process them later
+            path = Path(source)
+
+    except OSError as e:
+        raise ValueError(f"Path error: {str(e)}") from e
+
+    module_path = path  # Initialize early
     if is_local:
         if not module_path.exists():
             # Create empty file for test purposes
@@ -68,12 +83,24 @@ def analyze_package(
 
         if verbose:
             click.echo(f"📦 Processing package: {package_name}")
-            click.echo(f"📂 Found {len(package_info.get('modules', []))} modules")
             click.echo("🧠 Processing module ASTs...")
 
         package_info["modules"] = []
         processed = 0
-        module_paths = process_modules(package_path, config)
+        
+        if is_local and module_path.is_file():
+            # Handle single file case
+            module_data = {
+                "name": module_path.stem,
+                "path": str(module_path),
+                "internal_deps": [],
+                "imports": []
+            }
+            module_paths = [module_data]
+        else:
+            # Handle directory case
+            module_paths = process_modules(package_path, config)
+            
         total_modules = len(module_paths)
         
         if not module_paths:
@@ -484,31 +511,67 @@ def _get_return_type(returns: ast.AST, config: ChewdocConfig) -> str:
     return get_annotation(returns, config) if returns else "Any"
 
 
-def _get_package_name(path_part: Path) -> str:
-    """Extract clean package name from path component"""
-    # Convert string parts to Path objects
-    if isinstance(path_part, str):
-        path_part = Path(path_part)
-    name = path_part.stem if path_part.suffix == ".py" else path_part.name
-    return re.split(r"[-_]v?\d+(?:\.\d+)*", name, maxsplit=1)[0]
-
-
-def find_python_packages(root_dir: Path) -> dict:
-    packages = {}
+def _get_package_name(package_path: Path) -> str:
+    """Extract package name from path, handling versioned directories"""
+    # Convert path to string and split into parts
+    path_str = str(package_path)
+    parts = path_str.split('/')
     
-    for path in root_dir.rglob("**/*.py"):
-        if path.name == "__init__.py":
-            package_path = path.parent
-            rel_path = package_path.relative_to(root_dir)
+    # Remove empty parts and handle absolute paths
+    parts = [p for p in parts if p]
+    
+    # Look for version pattern in parts
+    for part in parts:
+        # Match version patterns like v1.2.3 or -1.2.3
+        if re.search(r'-\d+\.\d+\.\d+', part):
+            # Split on version number and return the base name
+            return re.split(r'-\d+\.\d+\.\d+', part)[0]
             
-            # Improved version stripping with lookahead
-            clean_parts = [
-                re.sub(r'(?:-[vV]?\d+\.\d+\.\d+)?$', '', part)
-                for part in rel_path.parts
-            ]
+    # If no version pattern found, return the last part
+    return parts[-1] if parts else ""
+
+
+def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
+    """Check if path matches any exclude patterns."""
+    return any(fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns)
+
+
+def find_python_packages(path: Path, config: ChewdocConfig) -> List[dict]:
+    """Find Python packages in directory with version pattern support"""
+    packages = []
+    
+    for p in path.glob("**/"):
+        if not p.is_dir() or _is_excluded(p, config.exclude_patterns):
+            continue
             
-            package_name = ".".join(clean_parts)
-            packages[package_name] = str(package_path)
+        # Handle versioned directories (my_pkg-1.2.3)
+        if re.search(r'\d+\.\d+\.\d+', p.name):
+            base_name = re.split(r'-\d+\.\d+\.\d+', p.name)[0]
+            # Get relative path after the versioned directory
+            versioned_dir = next((d for d in p.parents if re.search(r'\d+\.\d+\.\d+', d.name)), None)
+            if versioned_dir:
+                try:
+                    rel_path = p.relative_to(versioned_dir)
+                    if str(rel_path) != '.':
+                        package_name = f"{base_name}.{str(rel_path).replace('/', '.')}"
+                    else:
+                        package_name = base_name
+                except ValueError:
+                    package_name = base_name
+            else:
+                package_name = base_name
+        else:
+            # Get the package name including parent directories
+            rel_path = p.relative_to(path)
+            package_name = str(rel_path).replace('/', '.')
+            
+        # Check for valid package structure
+        if (p / "__init__.py").exists():
+            packages.append({
+                "name": package_name,
+                "path": str(p.resolve()),
+                "modules": []
+            })
     
     return packages
 

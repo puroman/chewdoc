@@ -21,7 +21,8 @@ META_TEMPLATE = """### Package Overview
 **Interface**: {python_requires}
 """
 
-MODULE_TEMPLATE = """\
+MODULE_TEMPLATE = """# {name}
+
 :::{{module}} {name}
 
 ### Module Context

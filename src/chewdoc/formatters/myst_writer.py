@@ -230,15 +230,20 @@ class MystWriter:
 
     def _format_usage_examples(self, examples: list) -> str:
         output = []
-        for ex in examples:
-            if isinstance(ex, dict) and ('code' in ex or 'content' in ex):
-                code = ex.get('code', ex.get('content', ''))
-                output.append(f"```python\n{code}\n```")
-            elif isinstance(ex, str):
-                output.append(f"```python\n{ex}\n```")
-            else:
-                logger.warning(f"Skipping invalid example type: {type(ex).__name__}")
-        return "\n\n".join(output)
+        for idx, ex in enumerate(examples, 1):
+            try:
+                if isinstance(ex, dict):
+                    code = ex.get('code') or ex.get('content', '')
+                elif isinstance(ex, str):
+                    code = ex
+                else:
+                    logger.warning(f"Skipping invalid example type: {type(ex).__name__}")
+                    continue
+                if code:
+                    output.append(f"```python\n{code}\n```")
+            except Exception as e:
+                logger.warning(f"Failed to process example #{idx}: {str(e)}")
+        return '\n'.join(output)
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -316,6 +321,13 @@ class MystWriter:
                     raise ValueError(f"Error formatting method {method_name}") from e
         
         return "\n".join(content)
+
+    def _format_function(self, func_name: str, func_data: dict) -> str:
+        if not isinstance(func_data.get('args'), (ast.arguments, dict)):
+            raise ValueError(f"Invalid function arguments for {func_name}")
+        args = func_data['args']
+        returns = func_data.get('returns')
+        return f"`{func_name}{_format_signature(args, returns)}`"
 
 def generate_docs(package_info: dict, output_path: Path) -> None:
     writer = MystWriter()

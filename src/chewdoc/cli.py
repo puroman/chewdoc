@@ -69,4 +69,5 @@ def chew(source, version, local, output, verbose):
         logger.error(f"❌ Error: {str(e)}")
         if verbose:
             logger.error(f"Stack trace:\n{traceback.format_exc()}")
+        click.echo(f"Error: {str(e)}", err=True)
         sys.exit(1)

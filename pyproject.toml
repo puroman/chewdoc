@@ -22,7 +22,8 @@ dev = [
     "pytest>=8.3.4",
     "pytest-cov >=3.0.0",  # Test coverage reporting
     "flake8 >=4.0.1",  # Linting and code style checking
-    "black >=22.3.0"  # Code formatting
+    "black >=22.3.0",  # Code formatting
+    "pytest-mock>=3.12.0"  # Mocking for tests
 ]
 
 # Configures setuptools to automatically find and include all Python packages
