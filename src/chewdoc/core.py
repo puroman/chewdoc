@@ -1,8 +1,8 @@
 import click
 from pathlib import Path
-from .package_analysis import analyze_package
-from .doc_generation import generate_docs
-from .config import load_config
+from src.chewdoc.package_analysis import analyze_package
+from src.chewdoc.doc_generation import generate_docs
+from src.chewdoc.config import load_config
 
 @click.command()
 @click.argument("source", type=click.Path(exists=True))

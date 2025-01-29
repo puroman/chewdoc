@@ -53,7 +53,7 @@ results = analyze_package("mypackage")
 generate_docs(results, output_format="myst")
 ```
 
-> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms and LLM-assisted workflows.
+> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms, LLM-assisted workflows, and agentic automation.
 
 ## Configuration
 
