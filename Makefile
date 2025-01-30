@@ -110,13 +110,12 @@ test-watch: venv
 	$(call activate_venv)
 	$(PYTHON) -m pytest-watch -- $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
-docs: install-dev
+docs: venv
 	$(call activate_venv)
 	@echo "📚 Generating project documentation..."
-	@mkdir -p $(DOCS_DIR)
 	@echo "🕒 Timing documentation generation..."
-	@time python -m chewed.cli chew ./src --local -o docs/ --verbose
-	@echo "✅ Documentation generated at: $(DOCS_DIR)/"
+	@time $(PYTHON) -m chewed.cli ./src --local -o docs/ --verbose
+	@echo "✅ Documentation generated in docs/"
 
 clean clear:
 	rm -rf .venv* .coverage .pytest_cache build dist *.egg-info docs htmlcov coverage.xml $(shell find . -name '__pycache__' -type d)
