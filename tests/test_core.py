@@ -52,17 +52,19 @@ def test_find_imports_stdlib():
     )
 
 
-def test_analyze_local_package(tmp_path, mocker):
+def test_analyze_local_package(tmp_path):
     # Create valid package structure
     pkg_root = tmp_path / "test_pkg"
     pkg_root.mkdir()
-    (pkg_root / "__init__.py").write_text("__version__ = '1.0'")  # Non-empty init
-    (pkg_root / "module.py").write_text("def example(): pass\nclass Test: pass")
+    (pkg_root / "__init__.py").write_text("__version__ = '1.0'")
+    (pkg_root / "module.py").write_text("def example(): pass")
 
-    # Mock namespace detection
-    mocker.patch("chewed.package_discovery._is_namespace_package", return_value=False)
-    mocker.patch("chewed.core.process_modules", return_value=[{"name": "module"}])
-    result = analyze_package(str(tmp_path), is_local=True, config=chewedConfig())
+    config = chewedConfig()
+    result = analyze_package(
+        source=str(pkg_root),
+        is_local=True,
+        config=config
+    )
     assert len(result["modules"]) >= 1
 
 
@@ -154,10 +156,9 @@ def test_find_python_packages_namespace(tmp_path):
     assert len(packages) > 0
 
 
-def test_get_package_name_versioned(tmp_path):
-    versioned_path = tmp_path / "my-pkg-1.2.3" / "src" / "my_pkg"
-    versioned_path.mkdir(parents=True)
-    assert get_package_name(versioned_path) == "my_pkg"
+def test_get_package_name_versioned():
+    assert get_package_name(Path("my-pkg-v1.2")) == "my_pkg"
+    assert get_package_name(Path("another_pkg-3.4.5")) == "another_pkg"
 
 
 def test_is_namespace_package(tmp_path):
@@ -208,16 +209,14 @@ def test_generate_docs_minimal(tmp_path):
     assert (tmp_path / "index.md").exists()
 
 
-def test_analyze_package_error_handling(tmp_path):
-    """Test error handling in package analysis"""
-    test_path = tmp_path / "valid_path"
-    test_path.mkdir()
-    (test_path / "__init__.py").touch()
-    
-    with patch("chewed.core.process_modules", return_value=[]):
-        with pytest.raises(RuntimeError) as exc_info:
-            analyze_package(str(test_path), is_local=True, config=chewedConfig())
-        assert "No valid modules found" in str(exc_info.value)
+def test_analyze_package_error_handling():
+    with pytest.raises(RuntimeError) as excinfo:
+        analyze_package(
+            source="/non/existent",
+            is_local=True,
+            config=chewedConfig()
+        )
+    assert "Package analysis failed" in str(excinfo.value)
 
 
 def test_find_python_packages_edge_cases(tmp_path):

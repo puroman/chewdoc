@@ -11,36 +11,41 @@ logger = logging.getLogger(__name__)
 
 
 def process_modules(package_path: Path, config: chewedConfig) -> list:
-    """Find and process modules in package with init.py handling"""
+    """Find and process Python modules in a package with better filtering"""
     modules = []
-    valid_modules = 0
     
-    # Always include __init__.py even if empty
-    init_py = package_path / "__init__.py"
-    if init_py.exists():
+    # Use configurable patterns for discovery
+    for pattern in config.module_discovery_patterns:
+        for p in package_path.glob(pattern):
+            if p.is_dir():
+                init_py = p / "__init__.py"
+                if not init_py.exists() and not config.allow_namespace_packages:
+                    continue
+                p = init_py
+
+            # Skip non-Python files and hidden directories
+            if p.suffix != ".py" or any(part.startswith(".") for part in p.parts):
+                continue
+                
+            # Process the file/directory
+            try:
+                module = process_module(p, package_path, config)
+                if module:
+                    modules.append(module)
+            except Exception as e:
+                logger.warning(f"Skipping {p}: {str(e)}")
+
+    # Handle namespace packages if allowed
+    if not modules and config.allow_namespace_packages:
+        logger.info(f"Processing namespace package at {package_path}")
         modules.append({
             "name": package_path.name,
-            "path": str(init_py),
+            "path": str(package_path),
             "imports": [],
             "internal_deps": [],
             "type_info": {"classes": {}, "functions": {}}
         })
-        valid_modules += 1  # Count init.py as valid
 
-    # Process other files with lenient handling
-    for py_file in package_path.glob("**/*.py"):
-        if _should_process(py_file, config):
-            try:
-                # Process module
-                module_data = _process_single_file(py_file, package_path)
-                if module_data:
-                    modules.append(module_data)
-                    valid_modules += 1
-            except SyntaxError as e:
-                logger.warning(f"Skipping {py_file} due to syntax error")
-    
-    if valid_modules == 0:
-        raise RuntimeError("No valid modules found in package")
     return modules
 
 

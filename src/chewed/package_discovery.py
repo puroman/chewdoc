@@ -5,22 +5,22 @@ import fnmatch
 import re
 
 
-def get_package_name(package_path: Path) -> Optional[str]:
-    """Robust package name detection with versioned path handling"""
-    version_pattern = re.compile(r"[-_]v?(\d+\.\d+\.\d+)")  # Match version patterns
+def get_package_name(package_path: Path) -> str:
+    """Robust package name extraction with version handling"""
+    version_pattern = re.compile(r"[-_]v?\d+.*$")  # Match version suffix
     
-    # Check current directory first
-    if match := version_pattern.search(package_path.name):
-        return package_path.name[:match.start()].replace("_", "-")
+    # Clean directory name
+    dir_name = package_path.name
+    clean_name = re.sub(version_pattern, "", dir_name)
+    clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
     
-    # Check parent directories
-    for parent in package_path.parents:
-        if match := version_pattern.search(parent.name):
-            return parent.name[:match.start()].replace("_", "-")
-        if parent.name not in ("src", "site-packages", "dist-packages"):
-            return parent.name.replace("_", "-")
+    # Fallback to parent directory if needed
+    if not clean_name or clean_name in ("src", "lib"):
+        parent_name = package_path.parent.name
+        clean_name = re.sub(version_pattern, "", parent_name)
+        clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
     
-    return package_path.name.replace("_", "-")
+    return clean_name or "unknown_package"
 
 
 def _is_namespace_package(pkg_path: Path) -> bool:
@@ -43,7 +43,7 @@ def _is_namespace_package(pkg_path: Path) -> bool:
 
 
 def find_python_packages(path: Path, config: chewedConfig) -> list:
-    """Find Python packages in directory with better pattern matching"""
+    """Find Python packages with configurable exclusion patterns"""
     packages = []
 
     # Match both regular and namespace packages

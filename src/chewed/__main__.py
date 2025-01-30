@@ -1,4 +1,3 @@
-import click
 from chewed.cli import cli
 
 

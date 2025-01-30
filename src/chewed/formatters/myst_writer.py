@@ -270,20 +270,19 @@ class MystWriter:
             return f"()  # {error_msg}"
 
     def _format_usage_examples(self, examples: list) -> str:
-        """Format usage examples with validation and proper indexing"""
+        """Format examples with validation"""
         output = []
-        for i, ex in enumerate(examples):
+        for i, ex in enumerate(examples, 1):
+            if not self._validate_example(ex):
+                continue
             try:
-                if isinstance(ex, (str, dict)):
-                    code = ex.get("code", ex.get("content", ""))
-                    if not code.strip():
-                        raise ValueError("Empty example content")
-                    output.append(f"### Example {i+1}\n```python\n{code}\n```")
-                else:
-                    raise ValueError(f"Invalid type: {type(ex).__name__}")
+                content = ex['content'].strip()
+                if not content:
+                    raise ValueError("Empty example content")
+                output.append(f"### Example {i}\n```python\n{content}\n```")
             except Exception as e:
-                logger.warning(f"Skipping example {i+1}: {str(e)}")
-        return "\n\n".join(output) if output else ""
+                self.logger.warning(f"Skipping example {i}: {str(e)}")
+        return "\n\n".join(output) if output else "No valid examples found"
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -509,6 +508,19 @@ class MystWriter:
         role = module.get("role", "General purpose module")
         layer = module.get("architecture_layer", "Not specified")
         return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
+
+    def _validate_example(self, example: dict) -> bool:
+        required = ['name', 'content', 'type']
+        if not all(key in example for key in required):
+            self.logger.warning(f"Skipping example {example.get('name', 'unnamed')}: Missing required fields")
+            return False
+        
+        # Add type check for content
+        if not isinstance(example['content'], str):
+            self.logger.warning(f"Skipping example {example['name']}: Invalid content type {type(example['content']).__name__}")
+            return False
+        
+        return True
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:
