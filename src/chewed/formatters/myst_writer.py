@@ -46,55 +46,67 @@ class MystWriter:
 
     def generate(self, package_info: Dict, output_dir: Path) -> None:
         """Generate documentation with improved path handling and logging"""
-        output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Generating documentation in {output_dir}")
 
-        # Generate module documentation
-        for module in package_info.get("modules", []):
-            module_name = module.get("name", "")
-            if not module_name:
-                continue
+            # Generate module documentation
+            for module in package_info.get("modules", []):
+                module_name = module.get("name", "")
+                if not module_name:
+                    self.logger.warning("Skipping module with no name")
+                    continue
 
-            # Sanitize filename
-            filename = self._sanitize_filename(module_name) + ".md"
-            file_path = output_dir / filename
+                # Sanitize filename
+                filename = self._sanitize_filename(module_name) + ".md"
+                file_path = output_dir / filename
 
-            # Process examples if present
-            if "examples" in module:
-                module["examples"] = self._process_examples(module["examples"])
+                try:
+                    # Process examples if present
+                    if "examples" in module:
+                        module["examples"] = self._process_examples(module["examples"])
 
-            # Generate content and write file
-            content = self._format_module_content(module)
-            file_path.write_text(content)
+                    # Generate content and write file
+                    content = self._format_module(module)
+                    file_path.write_text(content)
+                    self.logger.debug(f"Generated {filename}")
+                except Exception as e:
+                    self.logger.error(f"Error generating {filename}: {str(e)}")
+                    # Continue with other modules even if one fails
+                    continue
 
-        # Generate index
-        index_content = self._format_package_index(package_info)
-        (output_dir / "index.md").write_text(index_content)
+            # Generate index
+            try:
+                index_content = self._format_package_index(package_info)
+                index_path = output_dir / "index.md"
+                index_path.write_text(index_content)
+                self.logger.debug("Generated index.md")
+            except Exception as e:
+                self.logger.error(f"Error generating index.md: {str(e)}")
+                raise
 
-    def _format_index(self, package_data: dict) -> str:
-        """Generate package index content"""
-        content = [
-            f"# {package_data['package']} Documentation\n",
-            "```{toctree}\n:maxdepth: 2\n\n",
-        ]
-        for mod in package_data["modules"]:
-            module = mod if isinstance(mod, dict) else {"name": str(mod)}
-            content.append(f"{module['name'].replace('.', '/')}\n")
-        content.append("```")
-        return "\n".join(content)
+        except Exception as e:
+            self.logger.error(f"Documentation generation failed: {str(e)}")
+            raise
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links and toctree"""
+        package_name = package_data.get('name', package_data.get('package', 'Unknown Package'))
+        
         content = [
-            f"# {package_data.get('name', package_data['package'])} Documentation\n",
+            f"# {package_name} Documentation\n",
             "```{toctree}",
             ":maxdepth: 2",
-            ":caption: Contents:\n"
+            ":caption: Contents:",
+            ""  # Empty line after caption
         ]
 
         # Add module entries to toctree
-        for mod in package_data["modules"]:
-            module_data = mod if isinstance(mod, dict) else {"name": str(mod)}
-            content.append(module_data['name'])
+        for mod in package_data.get("modules", []):
+            module_name = mod.get("name", "") if isinstance(mod, dict) else str(mod)
+            if module_name:
+                sanitized_name = self._sanitize_filename(module_name)
+                content.append(sanitized_name)
 
         content.extend([
             "```\n",
@@ -104,50 +116,89 @@ class MystWriter:
         ])
 
         # Add module links
-        for mod in package_data["modules"]:
-            module_data = mod if isinstance(mod, dict) else {"name": str(mod)}
-            content.append(f"- [{module_data['name']}]({module_data['name']}.md)")
+        for mod in package_data.get("modules", []):
+            module_name = mod.get("name", "") if isinstance(mod, dict) else str(mod)
+            if module_name:
+                sanitized_name = self._sanitize_filename(module_name)
+                content.append(f"- [{module_name}]({sanitized_name}.md)")
 
         return "\n".join(content)
 
-    def _format_module_content(self, module: dict) -> str:
-        """Format module docs with fallback content"""
+    def _format_module(self, module: dict) -> str:
+        """Format module content with proper headers and sections"""
         try:
-            output = [
-                f"# Module: {module['name']}\n",
-                "```{py:module} " + module["name"],
+            module_name = module.get("name", "unknown")
+            content = [
+                f"# Module: {module_name}\n",
+                module.get("docstring", module.get("docstrings", {}).get("module", "No module documentation available")),
+                "\n"
             ]
 
-            # Add docstring
-            docstring = module.get("docstring", module.get("docstrings", {}).get("module", "No module docstring available"))
-            output.append(f"\n{docstring}")
+            # Add examples if present
+            if examples := module.get("examples", []):
+                content.extend([
+                    "## Examples\n",
+                    self._format_usage_examples(examples),
+                    "\n"
+                ])
 
-            # Add class section
-            if classes := module.get("type_info", {}).get("classes"):
-                output.append("\n## Classes\n")
-                for cls_name, cls_info in classes.items():
-                    output.append(self._format_class(cls_name, cls_info))
+            # Add type information only if there's actual content
+            if type_info := module.get("type_info", {}):
+                has_complex_content = False
+                has_variables = False
+                sections = []
 
-            output.append("\n```\n")
-            output.append(self._format_role_section(module))
+                # Add variables only if they have actual values
+                if variables := type_info.get("variables"):
+                    # Filter out empty or None values
+                    valid_vars = {
+                        name: value for name, value in variables.items() 
+                        if value is not None and (
+                            not isinstance(value, dict) or 
+                            value.get("value") is not None
+                        )
+                    }
+                    if valid_vars:
+                        has_variables = True
+                        sections.extend([
+                            "### Variables\n",
+                            *[f"- `{name}`: {self._format_variable_value(value)}" for name, value in valid_vars.items()],
+                            "\n"
+                        ])
 
-            # Add variables section
-            if variables := module.get("type_info", {}).get("variables"):
-                output.append("\n### Variables\n")
-                for var_name, var_value in variables.items():
-                    value = var_value.get("value") if isinstance(var_value, dict) else var_value
-                    output.append(f"- `{var_name}`: {value}")
+                # Add classes
+                if classes := type_info.get("classes"):
+                    has_complex_content = True
+                    for class_name, class_info in classes.items():
+                        sections.append(self._format_class(class_name, class_info))
 
-            # Add functions section
-            if functions := module.get("type_info", {}).get("functions"):
-                output.append("\n## Functions\n")
-                for func_name, func_info in functions.items():
-                    output.append(self._format_function(func_name, func_info))
+                # Add functions
+                if functions := type_info.get("functions"):
+                    has_complex_content = True
+                    sections.append("### Functions\n")
+                    for func_name, func_info in functions.items():
+                        sections.append(self._format_function(func_name, func_info))
 
-            return "\n".join(output)
+                # Only add API Reference section if there's complex content
+                # For minimal modules with only variables, add them directly
+                if has_complex_content:
+                    content.extend(["## API Reference\n"] + sections)
+                elif has_variables:
+                    content.extend(sections)
+
+            # Add role section
+            content.append(self._format_role_section(module))
+
+            return "\n".join(content)
         except Exception as e:
             self.logger.error(f"Error formatting module {module.get('name', 'unknown')}: {str(e)}")
-            return f"# Module: {module.get('name', 'unknown')}\n\nError generating documentation"
+            return f"# Module: {module.get('name', 'unknown')}\n\nError generating documentation: {str(e)}"
+
+    def _format_variable_value(self, value: Any) -> str:
+        """Format variable value for documentation"""
+        if isinstance(value, dict) and "value" in value:
+            return str(value["value"])
+        return str(value)
 
     def _format_imports(self, imports: list, package: str) -> str:
         """Categorize imports with full path handling"""
@@ -366,114 +417,6 @@ class MystWriter:
             return module["docstrings"]["module:1"]
         return infer_responsibilities(module)
 
-    def _format_module(self, module: dict) -> str:
-        """Format a module's documentation"""
-        try:
-            self.logger.debug(
-                f"Module data for {module.get('name')}: {module}"
-            )  # Add debug logging
-
-            # Get module docstring from the correct key
-            module_doc = (
-                module.get("docstrings", {}).get("module:1")
-                or module.get("docstrings", {}).get("module")
-                or "No module docstring available"
-            )
-
-            content = [
-                f"# Module: {module['name']}\n",
-                f"```{{py:module}} {module['name']}",
-                module_doc,
-                "```\n\n",
-            ]
-
-            # Add imports section
-            if module.get("imports"):
-                content.extend(
-                    [
-                        "## Dependencies\n",
-                        self._format_imports(
-                            module["imports"], self.package_data.get("package", "")
-                        ),
-                        "\n",
-                    ]
-                )
-
-            # Add module role and architecture layer
-            content.extend(
-                [
-                    self._format_role(module),
-                    self._format_architecture_layer(module),
-                    "\n",
-                ]
-            )
-
-            # Add examples section if available
-            if module.get("examples"):
-                content.extend(
-                    ["## Examples\n", self._format_usage_examples(module["examples"])]
-                )
-
-            # Add API Reference section if there are classes or functions
-            type_info = module.get("type_info", {})
-            if type_info.get("classes") or type_info.get("functions"):
-                content.append("\n## API Reference\n\n")  # Add line break after header
-
-                # Add variables
-                if type_info.get("variables"):
-                    content.append("### Variables\n")
-                    for var_name, var_info in type_info["variables"].items():
-                        # Handle different variable info formats
-                        var_value = (
-                            var_info.get("value")
-                            if isinstance(var_info, dict)
-                            else str(var_info)
-                        )
-                        content.append(f"- `{var_name}`: {var_value or 'Unknown'}")
-                    content.append("")
-
-                # Add classes
-                if type_info.get("classes"):
-                    for cls_name, cls_info in type_info["classes"].items():
-                        content.append(f"### [[{cls_name}]]\n")
-                        if cls_info.get("doc"):
-                            content.append(cls_info["doc"])
-                        if cls_info.get("methods"):
-                            content.append("\n#### Methods")
-                            for method_name, method_info in cls_info["methods"].items():
-                                content.append(f"\n##### {method_name}")
-                                if method_info.get("doc"):
-                                    content.append(method_info["doc"])
-                        content.append("")
-
-                # Add functions
-                if type_info.get("functions"):
-                    for func_name, func_info in type_info["functions"].items():
-                        content.append(self._format_function(func_name, func_info))
-
-            # Add variables section outside of API Reference if only variables exist
-            elif type_info.get("variables"):
-                content.append("\n### Variables\n")
-                for var_name, var_info in type_info["variables"].items():
-                    # Handle different variable info formats
-                    var_value = (
-                        var_info.get("value")
-                        if isinstance(var_info, dict)
-                        else str(var_info)
-                    )
-                    content.append(f"- `{var_name}`: {var_value or 'Unknown'}")
-                content.append("")
-
-            return "\n".join(content)
-        except ValueError as e:
-            raise ValueError(
-                f"Failed to format module {module.get('name', 'unknown')}: {str(e)}"
-            )
-        except Exception as e:
-            raise ValueError(
-                f"Unexpected error formatting module {module.get('name', 'unknown')}: {str(e)}"
-            )
-
     def _format_classes(self, classes: dict) -> str:
         output = []
         for class_name, class_info in classes.items():
@@ -562,6 +505,9 @@ class MystWriter:
         role = module.get("role", "General purpose module")
         layer = module.get("architecture_layer", "Not specified")
         return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
+
+    # Alias for backward compatibility with tests
+    _format_module_content = _format_module
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:
