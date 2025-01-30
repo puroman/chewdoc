@@ -74,37 +74,41 @@ class MystWriter:
 
     def _format_module_content(self, module: dict) -> str:
         """Format module docs with fallback content"""
-        output = [
-            f"# Module: {module['name']}\n",
-            "```{py:module} " + module['name']
-        ]
-        
-        # Handle different docstring formats
-        docstrings = module.get("docstrings", {})
-        if "module" in docstrings:  # Direct module docstring
-            output.append(f"\n{docstrings['module']}")
-        elif "module:1" in docstrings:  # Legacy format
-            output.append(f"\n{docstrings['module:1']}")
-        else:
-            output.append("\nNo module docstring available")
-        
-        output.append("\n```\n")
-        output.append(self._format_role_section(module))
-        
-        # Add variables section
-        if variables := module.get("type_info", {}).get("variables"):
-            output.append("\n### Variables\n")
-            for var_name, var_value in variables.items():
-                value = var_value.get("value") if isinstance(var_value, dict) else var_value
-                output.append(f"- `{var_name}`: {value}")
+        try:
+            output = [
+                f"# Module: {module['name']}\n",
+                "```{py:module} " + module['name']
+            ]
+            
+            # Handle different docstring formats
+            docstrings = module.get("docstrings", {})
+            if "module" in docstrings:  # Direct module docstring
+                output.append(f"\n{docstrings['module']}")
+            elif "module:1" in docstrings:  # Legacy format
+                output.append(f"\n{docstrings['module:1']}")
+            else:
+                output.append("\nNo module docstring available")
+            
+            output.append("\n```\n")
+            output.append(self._format_role_section(module))
+            
+            # Add variables section
+            if variables := module.get("type_info", {}).get("variables"):
+                output.append("\n### Variables\n")
+                for var_name, var_value in variables.items():
+                    value = var_value.get("value") if isinstance(var_value, dict) else var_value
+                    output.append(f"- `{var_name}`: {value}")
 
-        # Add functions section
-        if functions := module.get("type_info", {}).get("functions"):
-            output.append("\n## Functions\n")
-            for func_name, func_info in functions.items():
-                output.append(self._format_function(func_name, func_info))
-        
-        return "\n".join(output)
+            # Add functions section
+            if functions := module.get("type_info", {}).get("functions"):
+                output.append("\n## Functions\n")
+                for func_name, func_info in functions.items():
+                    output.append(self._format_function(func_name, func_info))
+            
+            return "\n".join(output)
+        except Exception as e:
+            logger.error(f"Error formatting module {module['name']}: {str(e)}")
+            return f"# Module: {module['name']}\n\nError generating documentation"
 
     def _format_imports(self, imports: list, package: str) -> str:
         """Categorize imports with full path handling"""
@@ -260,35 +264,16 @@ class MystWriter:
             return f"()  # {error_msg}"
 
     def _format_usage_examples(self, examples: list) -> str:
-        """Format usage examples with proper error handling"""
-        if not examples:
-            return "No examples available"
-
+        """Format usage examples with validation"""
         output = []
-        for idx, example in enumerate(examples, 1):
-            try:
-                if isinstance(example, str):
-                    code = example
-                elif isinstance(example, dict):
-                    if "code" not in example and "content" not in example:
-                        logger.warning(
-                            f"Skipping invalid example #{idx}: Expected dict with 'code' or 'content' key"
-                        )
-                        continue
-                    code = example.get("code") or example.get("content", "")
-                else:
-                    logger.warning(
-                        f"Skipping invalid example #{idx}: Expected dict or string, got {type(example)}"
-                    )
-                    continue
-
-                if code:
-                    output.append(f"```python\n{code}\n```")
-            except Exception as e:
-                logger.warning(f"Skipping invalid example #{idx}: {str(e)}")
-                continue
-
-        return "\n".join(output) if output else "No examples available"
+        for idx, ex in enumerate(examples):
+            if isinstance(ex, dict) and "code" in ex:
+                output.append(f"```python\n{ex['code']}\n```")
+            else:
+                logger.warning(f"Skipping invalid example at index {idx} - type: {type(ex)}")
+                output.append("<!-- Skipped invalid example -->")
+        
+        return "\n\n".join(output) if output else "No valid examples found"
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -442,33 +427,14 @@ class MystWriter:
                         output.append(f"\n{method_info['docstring']}\n")
         return "\n".join(output)
 
-    def _format_class(self, cls_name: str, cls_info: dict) -> str:
-        """Format class documentation with error handling"""
-        try:
-            content = [f"## {cls_name}"]
-
-            if cls_info.get("doc"):
-                content.append(cls_info["doc"])
-
-            if cls_info.get("methods"):
-                content.append("\n### Methods")
-                for method_name, method_info in cls_info["methods"].items():
-                    content.append(f"\n#### {method_name}")
-                    if method_info.get("doc"):
-                        content.append(method_info["doc"])
-                    try:
-                        signature = self._format_function_signature(method_info)
-                        content.append(
-                            f"\n```python\ndef {method_name}{signature}\n```"
-                        )
-                    except ValueError as e:
-                        logger.warning(
-                            f"Failed to format method signature for {cls_name}.{method_name}: {e}"
-                        )
-
-            return "\n".join(content)
-        except Exception as e:
-            raise ValueError(f"Failed to format class {cls_name}: {str(e)}")
+    def _format_class(self, class_name: str, class_info: dict) -> str:
+        """Format class documentation with proper cross-references"""
+        class_doc = class_info.get("doc", "No class documentation")
+        methods = "\n".join(
+            self._format_function(method_name, method_info)
+            for method_name, method_info in class_info.get("methods", {}).items()
+        )
+        return f"## [[{class_name}]]\n\n{class_doc}\n\n{methods}\n"
 
     def _format_function(self, func_name: str, func_info: dict) -> str:
         """Format function with AST node handling"""

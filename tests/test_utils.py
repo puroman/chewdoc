@@ -49,7 +49,11 @@ def test_extract_constant_values():
 
 def test_validate_ast_invalid_nodes():
     """Test AST validation with problematic nodes"""
-    bad_node = ast.Module(body=[{"not": "a-node"}])
+    # Create invalid AST node using actual AST classes
+    bad_node = ast.Module(body=[
+        ast.Expr(value=ast.Dict(keys=[ast.Constant(value=1)], values=[ast.Constant(value=2)]))  # Invalid dict with key-value mismatch
+    ])
+    
     with pytest.raises(ValueError) as excinfo:
         validate_ast(bad_node)
     assert "invalid node types" in str(excinfo.value).lower()
@@ -69,11 +73,17 @@ def test_get_annotation_complex():
 
 
 def test_validate_ast_with_errors():
-    """Test AST validation with empty module"""
-    tree = ast.parse("")
-    # Should NOT raise for empty modules
-    validate_ast(tree)  
-    # Test with actually invalid content
-    invalid_tree = ast.parse("123 = 'invalid'")  
-    with pytest.raises(ValueError):
+    """Test AST validation with invalid assignments"""
+    # Valid empty module should pass
+    validate_ast(ast.parse(""))
+    
+    # Create invalid AST structure directly
+    invalid_node = ast.Assign(
+        targets=[ast.Constant(value=123)],  # Invalid target
+        value=ast.Constant(value='invalid')
+    )
+    invalid_tree = ast.Module(body=[invalid_node], type_ignores=[])
+    
+    with pytest.raises(ValueError) as excinfo:
         validate_ast(invalid_tree)
+    assert "Invalid assignment target" in str(excinfo.value)

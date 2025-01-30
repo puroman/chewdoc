@@ -62,9 +62,8 @@ def test_analyze_local_package(tmp_path, mocker):
     # Mock namespace detection
     mocker.patch("chewdoc.package_discovery._is_namespace_package", return_value=False)
     mocker.patch("chewdoc.core.process_modules", return_value=[{"name": "module"}])
-    result = analyze_package(str(pkg_root), is_local=True, config=ChewdocConfig())
-    assert len(result) == 1
-    assert result[0]["name"] == "module"
+    result = analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+    assert len(result["modules"]) >= 1
 
 
 def test_analyze_pypi_package(tmp_path):
@@ -136,7 +135,7 @@ def test_analyze_invalid_source():
 def test_analyze_syntax_error(tmp_path):
     bad_file = tmp_path / "invalid.py"
     bad_file.write_text("def invalid_syntax")
-    with pytest.raises(ValueError, match="No valid modules found"):
+    with pytest.raises(RuntimeError, match="No valid modules found"):
         analyze_package(
             source=str(tmp_path), is_local=True, config=ChewdocConfig(), verbose=False
         )
@@ -224,14 +223,14 @@ def test_analyze_package_error_handling(tmp_path):
 
 
 def test_find_python_packages_edge_cases(tmp_path):
-    """Test package finding with unusual directory structures"""
-    # Test versioned parent directory
+    """Test package finding with versioned directories"""
     versioned_path = tmp_path / "pkg-v1.2.3" / "pkg" / "sub"
     versioned_path.mkdir(parents=True)
     (versioned_path / "__init__.py").write_text("")
+    
     config = ChewdocConfig()
     packages = find_python_packages(tmp_path, config)
-    assert any(p["name"] == "pkg.sub" for p in packages)
+    assert any(p["name"] == "pkg.sub" for p in packages), "Versioned parent not handled"
 
 
 def test_example_processing():

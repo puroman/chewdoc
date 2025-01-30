@@ -25,22 +25,20 @@ def analyze_package(
     source: str,
     version: Optional[str] = None,
     is_local: bool = True,
-    config: ChewdocConfig = ChewdocConfig(),
-    verbose: bool = False,
-) -> dict[str, Any]:
+    config: Optional[ChewdocConfig] = None,
+    verbose: bool = False
+) -> Dict[str, Any]:
     """Analyze Python package and extract documentation metadata."""
-    path = (
-        Path(source).resolve()
-        if is_local
-        else Path(tempfile.gettempdir()) / f"pypi_{source}"
-    )
-    if not is_local:
-        path.mkdir(exist_ok=True)
-
-    if verbose and (start := datetime.now()):
-        logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
-
+    config = config or ChewdocConfig()
     try:
+        # Convert source to Path object early
+        path = Path(str(source)).resolve()  # Ensure string conversion
+        if not is_local:
+            path.mkdir(exist_ok=True)
+
+        if verbose and (start := datetime.now()):
+            logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
+
         if verbose:
             logger.info("🔍 Fetching package metadata...")
         package_info = get_package_metadata(source, version, is_local)
@@ -59,7 +57,7 @@ def analyze_package(
         module_paths = process_modules(path, config)
 
         if not module_paths:
-            raise ValueError("No valid modules found in package")
+            raise RuntimeError("No valid modules found in package")
 
         for module_data in module_paths:
             module_path = Path(module_data["path"])

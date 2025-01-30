@@ -77,8 +77,17 @@ def _create_module_data(
         return None
 
 
-def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
-    return any(fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns)
+def _is_excluded(path: Path, config: ChewdocConfig) -> bool:
+    """Check if path matches any exclude patterns"""
+    # Convert exclude patterns to strings and filter invalid types
+    exclude_patterns = [str(p) for p in config.exclude_patterns if isinstance(p, (str, Path))]
+    str_path = str(path.resolve())
+    
+    return any(
+        fnmatch.fnmatch(str_path, pattern) 
+        for pattern in exclude_patterns
+        if isinstance(pattern, str)
+    )
 
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
@@ -236,3 +245,14 @@ stdlib_modules = {
     "collections",
     "itertools",
 }
+
+
+def _process_single_file(py_file: Path, package_path: Path) -> dict:
+    """Process a single Python file and return module data"""
+    module_data = _create_module_data(py_file, package_path, ChewdocConfig())
+    return {
+        "name": module_data["name"],
+        "path": str(py_file),
+        "imports": module_data["imports"],
+        "internal_deps": module_data["internal_deps"]
+    } if module_data else None

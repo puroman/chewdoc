@@ -8,10 +8,12 @@ import re
 def get_package_name(package_path: Path) -> Optional[str]:
     """Robust package name detection with versioned path handling"""
     try:
-        # Handle versioned directory patterns (my-pkg-1.2.3 -> my-pkg)
-        if re.match(r".*-\d+\.\d+.*", package_path.name):
-            base_name = re.sub(r"-\d+\.\d+.*", "", package_path.name)
-            return base_name.replace("_", "-")
+        # Handle version patterns like pkg-v1.2.3 or pkg_1.2.3
+        version_pattern = re.compile(r"[-_]v?\d+([.-]\d+)*($|[-_])")
+        match = version_pattern.search(package_path.name)
+        if match:
+            base_name = package_path.name[:match.start()]
+            return base_name.replace("_", "-").strip("-")
             
         # Existing detection logic
         for parent in package_path.parents:

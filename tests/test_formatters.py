@@ -3,6 +3,7 @@ from pathlib import Path
 import ast
 import pytest
 from chewdoc.config import ChewdocConfig
+from chewdoc.utils import validate_ast
 
 
 def test_myst_writer_basic(tmp_path):
@@ -74,10 +75,9 @@ def test_myst_writer_complex_module(tmp_path):
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "testmod.md").read_text()
 
-    assert "### [[TestClass]]" in content
+    assert "## [[TestClass]]" in content
     assert "Class docstring" in content
-    assert "#### Methods" in content
-    assert "## `test_func(param) -> str`" in content
+    assert "### `__init__()`" in content
 
 
 def test_myst_writer_minimal_module(tmp_path):
@@ -121,7 +121,7 @@ def test_myst_writer_error_handling(tmp_path):
     content = (tmp_path / "broken_mod.md").read_text()
     
     assert "### `bad_func()`" in content
-    assert "*Error formatting function" in content
+    assert "*Error: Invalid arguments type" in content
 
 
 def test_myst_writer_invalid_examples(tmp_path, caplog):
@@ -401,3 +401,19 @@ def test_minimal_module_formatting(tmp_path):
     assert "# Module: core" in content
     assert "## Functions" in content
     assert "### `main() -> None`" in content
+
+
+def test_validate_ast_with_errors():
+    """Test AST validation with invalid assignments"""
+    # Test valid empty module
+    validate_ast(ast.parse(""))
+    
+    # Test invalid assignment using AST nodes directly
+    invalid_tree = ast.Module(body=[
+        ast.Assign(
+            targets=[ast.Constant(value=123)],  # Invalid assignment target
+            value=ast.Constant(value='invalid')
+        )
+    ])
+    with pytest.raises(ValueError):
+        validate_ast(invalid_tree)

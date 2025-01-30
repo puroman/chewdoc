@@ -63,33 +63,20 @@ def infer_responsibilities(module: dict) -> str:
 
 
 def validate_ast(node: ast.AST) -> None:
-    """Validate AST structure with more lenient rules"""
-    if not isinstance(node, ast.AST):
-        raise TypeError(f"Invalid AST - expected node, got {type(node).__name__}")
-
-    if any(isinstance(stmt, (dict, str)) for stmt in getattr(node, "body", [])):
-        raise ValueError("AST contains invalid node types - found serialized data")
-
-    if not hasattr(node, "body"):
-        raise ValueError("Invalid AST structure - missing body attribute")
-
-    # Allow completely empty modules
-    if not node.body:
-        return
-
-    # Allow modules with only docstrings/imports/passes
-    has_valid_content = any(
-        not isinstance(stmt, (ast.Expr, ast.Pass, ast.Import, ast.ImportFrom)) 
-        for stmt in node.body
-    )
-    
-    if not has_valid_content:
-        has_docstring = any(
-            isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
-            for stmt in node.body
-        )
-        if not has_docstring:
-            raise ValueError("Module contains only non-executable statements")
+    """Validate AST structure with enhanced assignment checking"""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Assign):
+            for target in child.targets:
+                if not isinstance(target, (ast.Name, ast.Attribute, ast.Subscript)):
+                    line = getattr(target, 'lineno', 'unknown')
+                    raise ValueError(
+                        f"Invalid assignment target at line {line}: {ast.dump(target)}"
+                    )
+        if isinstance(child, ast.Dict):
+            if len(child.keys) != len(child.values):
+                line = getattr(child, 'lineno', 'unknown')
+                raise ValueError(f"Invalid Dict at line {line} - {len(child.keys)} keys vs {len(child.values)} values")
+        # Add other validation checks here
 
 
 def find_usage_examples(node: ast.AST) -> list:
