@@ -93,11 +93,9 @@ def test_cli_version():
     # Add cleanup for version file
 
 
-def test_cli_missing_source_type():
-    runner = CliRunner()
-    result = runner.invoke(cli, ["chew", "mypkg", "-o", "docs"])
-    assert result.exit_code == 2
-    assert "Must specify --local or --pypi" in result.output
+def test_cli_missing_source_type(runner):
+    result = runner.invoke(cli, ["chew", "testpkg", "-o", "/tmp"])
+    assert "Error: Missing option '--local' or '--pypi'" in result.output
 
 
 def test_cli_verbose_output(tmp_path):

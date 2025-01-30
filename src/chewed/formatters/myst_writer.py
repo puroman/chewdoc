@@ -523,7 +523,9 @@ class MystWriter:
             self.logger.warning("Skipping example: Missing 'code'/'content' field")
             return False
         
-        if not isinstance(code_content, str):
+        if isinstance(code_content, list):
+            code_content = "\n".join(code_content)
+        elif not isinstance(code_content, str):
             self.logger.warning(
                 "Skipping example '%s': Invalid content type %s",
                 example.get('name', 'unnamed'),

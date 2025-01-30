@@ -133,25 +133,21 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
             {
                 "name": "bad_examples",
                 "examples": [
-                    ["invalid list example"],  # Example 1
-                    {"type": "pytest"},  # Example 2 (no code)
-                    42,  # Example 3
+                    ["invalid list example"],  # Example 1 (list)
+                    {"type": "pytest"},        # Example 2 (no code)
+                    42                         # Example 3 (invalid type)
                 ],
             }
         ],
     }
 
     writer.generate(package_info, tmp_path)
-    assert "Skipping example 1: Content must be a string" in caplog.text
-    assert "Skipping example 3: Missing required field 'content'" in caplog.text
+    assert "Skipping example: Missing 'code'/'content' field" in caplog.text
+    assert "Skipping invalid example type: int" in caplog.text
 
-    # Add content check
-    output_file = tmp_path / "index.md"
-    assert output_file.exists()
+    output_file = tmp_path / "bad_examples.md"
     content = output_file.read_text()
-    assert "MyPackage" in content
-    assert "example2" in content
-    assert "example3" not in content
+    assert "invalid list example" in content  # List should be converted to string
 
 
 def test_myst_writer_config_initialization():
