@@ -13,7 +13,7 @@ from chewed._version import __version__
 logger = logging.getLogger(__name__)
 
 @click.command()
-@click.argument('source', required=True)
+@click.argument('source', required=True, type=click.Path(exists=False))
 @click.option('--output', '-o', default='docs', help='Output directory for documentation')
 @click.option('--local/--pypi', default=True, help='Source is local package or PyPI package')
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
@@ -31,15 +31,28 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         output_path = Path(output).resolve()
         output_path.mkdir(parents=True, exist_ok=True)
 
+        # Handle special case for Makefile documentation generation
+        if source == './src':
+            source = os.path.abspath(source)
+
+        # Validate source path for local packages
+        if local:
+            source_path = Path(source)
+            if not source_path.exists():
+                raise click.BadParameter(f"Source path does not exist: {source}")
+
         # Handle PyPI package download if needed
         if not local:
             logger.info(f"🌐 Fetching PyPI package metadata for {source}")
             source = get_pypi_metadata(source)
 
+        # Normalize source path
+        source_path = Path(source).resolve()
+
         # Analyze package
         config = chewedConfig()
         package_info = analyze_package(
-            source=str(source), 
+            source=str(source_path), 
             is_local=local, 
             config=config, 
             verbose=verbose
