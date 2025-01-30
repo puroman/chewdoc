@@ -77,7 +77,7 @@ def analyze_package(
                 is_local=is_local,
                 version=getattr(config, "version", "0.0.0"),
             ),
-            "config": config.dict(),
+            "config": config.model_dump(),
         }
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")

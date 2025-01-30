@@ -514,23 +514,25 @@ class MystWriter:
 
     def _validate_example(self, example: dict) -> bool:
         if not isinstance(example, dict):
-            self.logger.warning(
-                "Skipping invalid example type: %s", type(example).__name__
-            )
+            self.logger.warning("Skipping invalid example type: %s", type(example).__name__)
             return False
-
-        if "content" not in example:
-            self.logger.warning("Skipping example: Missing 'content' field")
+        
+        # Handle both 'code' and legacy 'content' fields
+        code_content = example.get("code") or example.get("content")
+        if not code_content:
+            self.logger.warning("Skipping example: Missing 'code'/'content' field")
             return False
-
-        if not isinstance(example["content"], str):
+        
+        if not isinstance(code_content, str):
             self.logger.warning(
                 "Skipping example '%s': Invalid content type %s",
-                example.get("name", "unnamed"),
-                type(example["content"]).__name__,
+                example.get('name', 'unnamed'),
+                type(code_content).__name__
             )
             return False
-
+        
+        # Normalize to 'code' key
+        example['code'] = code_content
         return True
 
 

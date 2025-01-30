@@ -252,10 +252,10 @@ def test_myst_writer_example_validation():
     """Test example formatting with invalid entries"""
     writer = MystWriter()
     examples = [{"invalid": "structure"}, 12345, {"code": "valid = True"}]
-
+    
     result = writer._format_usage_examples(examples)
     assert "valid = True" in result
-    assert "No examples available" not in result
+    assert "Invalid example" in result
 
 
 def test_myst_writer_class_formatting():

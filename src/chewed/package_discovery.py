@@ -11,6 +11,15 @@ def get_package_name(package_path: Path) -> str:
 
     # Clean directory name
     dir_name = package_path.name
+    
+    # Check parent directory if current dir is versioned
+    parent = package_path.parent
+    if version_pattern.search(dir_name) and parent.name != package_path.name:
+        parent_clean = re.sub(version_pattern, "", parent.name)
+        if parent_clean:
+            return re.sub(r"[-_.]+", "_", parent_clean).lower()
+    
+    # Original cleaning logic
     clean_name = re.sub(version_pattern, "", dir_name)
     clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
 
