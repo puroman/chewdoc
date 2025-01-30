@@ -68,12 +68,14 @@ def validate_ast(node: ast.AST) -> None:
         if isinstance(child, ast.Assign):
             for target in child.targets:
                 if not isinstance(target, (ast.Name, ast.Attribute, ast.Subscript)):
-                    line = getattr(target, 'lineno', 'unknown')
-                    raise ValueError(f"Invalid assignment target at line {line}: {ast.dump(target)}")
-        
+                    line = getattr(target, "lineno", "unknown")
+                    raise ValueError(
+                        f"Invalid assignment target at line {line}: {ast.dump(target)}"
+                    )
+
         if isinstance(child, ast.Dict):
             if len(child.keys) != len(child.values):
-                line = getattr(child, 'lineno', 'unknown')
+                line = getattr(child, "lineno", "unknown")
                 raise ValueError(
                     f"Invalid Dict at line {line} - key/value count mismatch "
                     f"({len(child.keys)} keys vs {len(child.values)} values)"
@@ -154,10 +156,9 @@ def safe_write(
 def relative_path(from_path: Path, to_path: Path) -> Path:
     return Path(
         os.path.relpath(
-            str(to_path),
-            str(from_path.parent if from_path.is_file() else from_path)
+            str(to_path), str(from_path.parent if from_path.is_file() else from_path)
         )
-    ).with_suffix('')
+    ).with_suffix("")
 
 
 def _validate_examples(self, raw_examples: List) -> List[Dict]:

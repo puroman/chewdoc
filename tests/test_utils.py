@@ -49,13 +49,17 @@ def test_extract_constant_values():
 
 def test_validate_ast_invalid_nodes():
     """Test AST validation with key/value mismatch"""
-    bad_node = ast.Module(body=[
-        ast.Expr(value=ast.Dict(
-            keys=[ast.Constant(value=1), ast.Constant(value=2)],
-            values=[ast.Constant(value=3)]  # 2 keys, 1 value
-        ))
-    ])
-    
+    bad_node = ast.Module(
+        body=[
+            ast.Expr(
+                value=ast.Dict(
+                    keys=[ast.Constant(value=1), ast.Constant(value=2)],
+                    values=[ast.Constant(value=3)],  # 2 keys, 1 value
+                )
+            )
+        ]
+    )
+
     with pytest.raises(ValueError) as exc_info:
         validate_ast(bad_node)
     assert "key/value count mismatch" in str(exc_info.value)
@@ -79,14 +83,14 @@ def test_validate_ast_with_errors():
     """Test AST validation with invalid assignments"""
     # Valid empty module should pass
     validate_ast(ast.parse(""))
-    
+
     # Create invalid AST structure directly
     invalid_node = ast.Assign(
         targets=[ast.Constant(value=123)],  # Invalid target
-        value=ast.Constant(value='invalid')
+        value=ast.Constant(value="invalid"),
     )
     invalid_tree = ast.Module(body=[invalid_node], type_ignores=[])
-    
+
     with pytest.raises(ValueError) as excinfo:
         validate_ast(invalid_tree)
     assert "Invalid assignment target" in str(excinfo.value)

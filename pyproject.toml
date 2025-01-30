@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chewed"
 version = "0.1.0"
-description = "chewed is a powerful Python documentation generation tool that converts package metadata and docstrings into MyST-compatible markdown"
+description = "Code documentation toolkit for analyzing and generating LLM-friendly, but human-lovable code documentation. Currently supports Python packages."
 authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
@@ -47,9 +47,6 @@ max_example_lines = 15
 
 [tool.black]
 line-length = 88
-
-
-
 [tool.flake8]
 max-line-length = 88
 extend-ignore = ["E203", "W503"]

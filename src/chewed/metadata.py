@@ -7,26 +7,22 @@ from typing import Dict, Optional, Any
 from datetime import datetime
 
 
-def get_package_metadata(
-    path: Path,
-    is_local: bool,
-    version: str = "0.0.0"
-) -> dict:
+def get_package_metadata(path: Path, is_local: bool, version: str = "0.0.0") -> dict:
     """Get package metadata from local path or PyPI"""
     meta = {
         "name": path.name,
         "version": version,
         "source": "local" if is_local else "pypi",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
-    
+
     if not is_local:
         try:
             pypi_meta = get_pypi_metadata(path.name)
             meta.update(pypi_meta)
         except Exception as e:
             logger.warning(f"Couldn't fetch PyPI metadata: {str(e)}")
-    
+
     return meta
 
 

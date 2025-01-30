@@ -60,11 +60,7 @@ def test_analyze_local_package(tmp_path):
     (pkg_root / "module.py").write_text("def example(): pass")
 
     config = chewedConfig()
-    result = analyze_package(
-        source=str(pkg_root),
-        is_local=True,
-        config=config
-    )
+    result = analyze_package(source=str(pkg_root), is_local=True, config=config)
     assert len(result["modules"]) >= 1
 
 
@@ -95,7 +91,9 @@ def test_analyze_invalid_package(tmp_path):
 
 
 def test_analyze_module_processing(tmp_path, mocker):
-    with patch("chewed.module_processor.process_modules", return_value=[{"name": "test"}]) as mock_process:
+    with patch(
+        "chewed.module_processor.process_modules", return_value=[{"name": "test"}]
+    ) as mock_process:
         result = analyze_package(str(tmp_path), is_local=True, config=chewedConfig())
         mock_process.assert_called_once()
         assert len(result["modules"]) == 1
@@ -118,11 +116,9 @@ def test_analyze_empty_package(tmp_path):
     (empty_pkg / "__init__.py").touch()
 
     result = analyze_package(
-        source=str(empty_pkg), 
-        is_local=True, 
-        config=chewedConfig()
+        source=str(empty_pkg), is_local=True, config=chewedConfig()
     )
-    
+
     assert len(result["modules"]) == 1
     assert result["modules"][0]["name"] == "empty_pkg"
 
@@ -211,11 +207,7 @@ def test_generate_docs_minimal(tmp_path):
 
 def test_analyze_package_error_handling():
     with pytest.raises(RuntimeError) as excinfo:
-        analyze_package(
-            source="/non/existent",
-            is_local=True,
-            config=chewedConfig()
-        )
+        analyze_package(source="/non/existent", is_local=True, config=chewedConfig())
     assert "Package analysis failed" in str(excinfo.value)
 
 
@@ -223,7 +215,7 @@ def test_find_python_packages_edge_cases(tmp_path):
     versioned_path = tmp_path / "pkg-v1.2.3" / "pkg" / "sub"
     versioned_path.mkdir(parents=True)
     (versioned_path / "__init__.py").touch()
-    
+
     config = chewedConfig()
     packages = find_python_packages(tmp_path, config)
     assert any(p["name"] == "pkg.sub" for p in packages), f"Found packages: {packages}"

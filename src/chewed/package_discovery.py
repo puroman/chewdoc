@@ -8,18 +8,18 @@ import re
 def get_package_name(package_path: Path) -> str:
     """Robust package name extraction with version handling"""
     version_pattern = re.compile(r"[-_]v?\d+.*$")  # Match version suffix
-    
+
     # Clean directory name
     dir_name = package_path.name
     clean_name = re.sub(version_pattern, "", dir_name)
     clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
-    
+
     # Handle parent directory if current name is generic
     if clean_name in ("src", "lib", "site-packages", "dist-packages"):
         parent_name = package_path.parent.name
         clean_name = re.sub(version_pattern, "", parent_name)
         clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
-    
+
     return clean_name or "unknown_package"
 
 

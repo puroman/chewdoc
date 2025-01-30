@@ -16,7 +16,7 @@ def test_myst_writer_basic(tmp_path):
 
     writer.generate(package_info, tmp_path)
     index_content = (tmp_path / "index.md").read_text()
-    
+
     assert "testpkg Documentation" in index_content
     assert "testmod" in index_content
     assert "```{toctree}" in index_content
@@ -119,7 +119,7 @@ def test_myst_writer_error_handling(tmp_path):
 
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "broken_mod.md").read_text()
-    
+
     assert "### `bad_func()`" in content
     assert "*Error: Invalid arguments type" in content
 
@@ -129,16 +129,18 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
     writer = MystWriter()
     package_info = {
         "package": "testpkg",
-        "modules": [{
-            "name": "bad_examples",
-            "examples": [
-                ["invalid list example"],  # Example 1
-                {"type": "pytest"},        # Example 2 (no code)
-                42                         # Example 3
-            ]
-        }]
+        "modules": [
+            {
+                "name": "bad_examples",
+                "examples": [
+                    ["invalid list example"],  # Example 1
+                    {"type": "pytest"},  # Example 2 (no code)
+                    42,  # Example 3
+                ],
+            }
+        ],
     }
-    
+
     writer.generate(package_info, tmp_path)
     assert "Skipping example 1: Content must be a string" in caplog.text
     assert "Skipping example 3: Missing required field 'content'" in caplog.text
@@ -341,15 +343,12 @@ def test_format_function_with_ast_arguments():
     """Test function formatting with real AST arguments"""
     writer = MystWriter()
     func_ast = ast.parse("def test(a: int, b: str = '') -> bool: pass").body[0]
-    
+
     result = writer._format_function(
-        "test", {
-            "args": func_ast.args,
-            "returns": func_ast.returns,
-            "doc": "Test function"
-        }
+        "test",
+        {"args": func_ast.args, "returns": func_ast.returns, "doc": "Test function"},
     )
-    
+
     assert "test(a: int, b: str = '') -> bool" in result
     assert "Test function" in result
 
@@ -380,7 +379,7 @@ def test_module_content_generation(tmp_path):
     writer.generate(package_data, tmp_path)
     test_file = tmp_path / "test_module.md"
     content = test_file.read_text()
-    
+
     assert "Test module documentation" in content
     assert "### `test_func(arg1, arg2) -> str`" in content
 
@@ -390,17 +389,21 @@ def test_minimal_module_formatting(tmp_path):
     writer = MystWriter()
     package_data = {
         "package": "testpkg",
-        "modules": [{
-            "name": "core",
-            "type_info": {
-                "functions": {"main": {"args": [], "returns": None, "doc": "Main entry point"}}
+        "modules": [
+            {
+                "name": "core",
+                "type_info": {
+                    "functions": {
+                        "main": {"args": [], "returns": None, "doc": "Main entry point"}
+                    }
+                },
             }
-        }],
+        ],
     }
 
     writer.generate(package_data, tmp_path)
     content = (tmp_path / "core.md").read_text()
-    
+
     assert "# Module: core" in content
     assert "## Functions" in content
     assert "### `main() -> None`" in content
@@ -410,13 +413,15 @@ def test_validate_ast_with_errors():
     """Test AST validation with invalid assignments"""
     # Test valid empty module
     validate_ast(ast.parse(""))
-    
+
     # Test invalid assignment using AST nodes directly
-    invalid_tree = ast.Module(body=[
-        ast.Assign(
-            targets=[ast.Constant(value=123)],  # Invalid assignment target
-            value=ast.Constant(value='invalid')
-        )
-    ])
+    invalid_tree = ast.Module(
+        body=[
+            ast.Assign(
+                targets=[ast.Constant(value=123)],  # Invalid assignment target
+                value=ast.Constant(value="invalid"),
+            )
+        ]
+    )
     with pytest.raises(ValueError):
         validate_ast(invalid_tree)

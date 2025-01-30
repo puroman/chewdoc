@@ -31,16 +31,16 @@ class MystWriter:
 
     def generate(self, package_data: dict, output_path: Path) -> None:
         output_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Write index first
         (output_path / "index.md").write_text(self._format_index(package_data))
-        
+
         # Write module docs
         for mod in package_data["modules"]:
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
             module_file = output_path / f"{module['name'].replace('.', '/')}.md"
             module_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             content = self._format_module_content(module)
             module_file.write_text(content)
 
@@ -48,7 +48,7 @@ class MystWriter:
         """Generate package index content"""
         content = [
             f"# {package_data['package']} Documentation\n",
-            "```{toctree}\n:maxdepth: 2\n\n"
+            "```{toctree}\n:maxdepth: 2\n\n",
         ]
         for mod in package_data["modules"]:
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
@@ -78,15 +78,15 @@ class MystWriter:
         try:
             output = [
                 f"# Module: {module['name']}\n",
-                "```{py:module} " + module['name']
+                "```{py:module} " + module["name"],
             ]
-            
+
             # Add class section
             if classes := module.get("type_info", {}).get("classes"):
                 output.append("\n## Classes\n")
                 for cls_name, cls_info in classes.items():
                     output.append(self._format_class(cls_name, cls_info))
-            
+
             # Handle different docstring formats
             docstrings = module.get("docstrings", {})
             if "module" in docstrings:  # Direct module docstring
@@ -95,15 +95,19 @@ class MystWriter:
                 output.append(f"\n{docstrings['module:1']}")
             else:
                 output.append("\nNo module docstring available")
-            
+
             output.append("\n```\n")
             output.append(self._format_role_section(module))
-            
+
             # Add variables section
             if variables := module.get("type_info", {}).get("variables"):
                 output.append("\n### Variables\n")
                 for var_name, var_value in variables.items():
-                    value = var_value.get("value") if isinstance(var_value, dict) else var_value
+                    value = (
+                        var_value.get("value")
+                        if isinstance(var_value, dict)
+                        else var_value
+                    )
                     output.append(f"- `{var_name}`: {value}")
 
             # Add functions section
@@ -111,7 +115,7 @@ class MystWriter:
                 output.append("\n## Functions\n")
                 for func_name, func_info in functions.items():
                     output.append(self._format_function(func_name, func_info))
-            
+
             return "\n".join(output)
         except Exception as e:
             self.logger.error(f"Error formatting module {module['name']}: {str(e)}")
@@ -277,7 +281,7 @@ class MystWriter:
             if not self._validate_example(ex):
                 continue
             try:
-                content = ex['content'].strip()
+                content = ex["content"].strip()
                 if not content:
                     raise ValueError("Empty example content")
                 output.append(f"### Example {i}\n```python\n{content}\n```")
@@ -453,33 +457,37 @@ class MystWriter:
             # Validate arguments type before processing
             if not isinstance(args, (ast.arguments, list)):
                 raise TypeError(f"Invalid arguments type: {type(args).__name__}")
-            
+
             returns = func_info.get("returns", "None")
             doc = func_info.get("doc", "No docstring available")
 
             arg_list = []
             if isinstance(args, ast.arguments):
                 # Handle positional arguments with defaults
-                defaults = [None] * (len(args.args) - len(args.defaults)) + list(args.defaults)
+                defaults = [None] * (len(args.args) - len(args.defaults)) + list(
+                    args.defaults
+                )
                 for arg, default in zip(args.args, defaults):
                     arg_name = arg.arg
                     arg_type = ast.unparse(arg.annotation) if arg.annotation else "Any"
                     default_str = f" = {ast.unparse(default)}" if default else ""
                     arg_list.append(f"{arg_name}: {arg_type}{default_str}")
-                    
+
                 # Handle *args and **kwargs
                 if args.vararg:
                     arg_list.append(f"*{args.vararg.arg}")
                 if args.kwarg:
                     arg_list.append(f"**{args.kwarg.arg}")
-                    
+
                 arg_str = ", ".join(arg_list)
             elif isinstance(args, list):
                 arg_str = ", ".join(args)
             else:
                 arg_str = "..."
-            
-            return_type = ast.unparse(returns) if isinstance(returns, ast.AST) else returns
+
+            return_type = (
+                ast.unparse(returns) if isinstance(returns, ast.AST) else returns
+            )
             return (
                 f"### `{func_name}({arg_str}) -> {return_type}`\n\n"
                 f"{doc}\n\n"
@@ -489,14 +497,8 @@ class MystWriter:
             return f"### `{func_name}()`\n\n*Error: {str(e)[:100]}*\n"
 
     def _handle_import_from(self, node: ast.ImportFrom) -> None:
-        if (
-            node.module 
-            and any(self._is_public_name(name.name) for name in node.names)
-        ):
-            self._add_import_relationship(
-                module=node.module,
-                level=node.level or 0
-            )
+        if node.module and any(self._is_public_name(name.name) for name in node.names):
+            self._add_import_relationship(module=node.module, level=node.level or 0)
 
     def _format_attribute(self, node: ast.Attribute) -> str:
         return (
@@ -512,21 +514,23 @@ class MystWriter:
 
     def _validate_example(self, example: dict) -> bool:
         if not isinstance(example, dict):
-            self.logger.warning("Skipping invalid example type: %s", type(example).__name__)
-            return False
-        
-        if 'content' not in example:
-            self.logger.warning("Skipping example: Missing 'content' field")
-            return False
-        
-        if not isinstance(example['content'], str):
             self.logger.warning(
-                "Skipping example '%s': Invalid content type %s",
-                example.get('name', 'unnamed'),
-                type(example['content']).__name__
+                "Skipping invalid example type: %s", type(example).__name__
             )
             return False
-        
+
+        if "content" not in example:
+            self.logger.warning("Skipping example: Missing 'content' field")
+            return False
+
+        if not isinstance(example["content"], str):
+            self.logger.warning(
+                "Skipping example '%s': Invalid content type %s",
+                example.get("name", "unnamed"),
+                type(example["content"]).__name__,
+            )
+            return False
+
         return True
 
 

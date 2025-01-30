@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def process_modules(package_path: Path, config: chewedConfig) -> list:
     """Find and process Python modules in a package with better filtering"""
     modules = []
-    
+
     # Use configurable patterns for discovery
     for pattern in config.module_discovery_patterns:
         for p in package_path.glob(pattern):
@@ -26,7 +26,7 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
             # Skip non-Python files and hidden directories
             if p.suffix != ".py" or any(part.startswith(".") for part in p.parts):
                 continue
-                
+
             # Process the file/directory
             try:
                 module = process_module(p, package_path, config)
@@ -38,13 +38,15 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
     # Handle namespace packages if allowed
     if not modules and config.allow_namespace_packages:
         logger.info(f"Processing namespace package at {package_path}")
-        modules.append({
-            "name": package_path.name,
-            "path": str(package_path),
-            "imports": [],
-            "internal_deps": [],
-            "type_info": {"classes": {}, "functions": {}}
-        })
+        modules.append(
+            {
+                "name": package_path.name,
+                "path": str(package_path),
+                "imports": [],
+                "internal_deps": [],
+                "type_info": {"classes": {}, "functions": {}},
+            }
+        )
 
     return modules
 
@@ -52,9 +54,9 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
 def _should_process(path: Path, config: chewedConfig) -> bool:
     """Check if file should be processed"""
     return (
-        path.name != "__init__.py" and  # Handled separately
-        not _is_excluded(path, config) and
-        path.is_file()
+        path.name != "__init__.py"  # Handled separately
+        and not _is_excluded(path, config)
+        and path.is_file()
     )
 
 
@@ -94,11 +96,13 @@ def _create_module_data(
 def _is_excluded(path: Path, config: chewedConfig) -> bool:
     """Check if path matches any exclude patterns"""
     # Convert exclude patterns to strings and filter invalid types
-    exclude_patterns = [str(p) for p in config.exclude_patterns if isinstance(p, (str, Path))]
+    exclude_patterns = [
+        str(p) for p in config.exclude_patterns if isinstance(p, (str, Path))
+    ]
     str_path = str(path.resolve())
-    
+
     return any(
-        fnmatch.fnmatch(str_path, pattern) 
+        fnmatch.fnmatch(str_path, pattern)
         for pattern in exclude_patterns
         if isinstance(pattern, str)
     )
@@ -264,9 +268,13 @@ stdlib_modules = {
 def _process_single_file(py_file: Path, package_path: Path) -> dict:
     """Process a single Python file and return module data"""
     module_data = _create_module_data(py_file, package_path, chewedConfig())
-    return {
-        "name": module_data["name"],
-        "path": str(py_file),
-        "imports": module_data["imports"],
-        "internal_deps": module_data["internal_deps"]
-    } if module_data else None
+    return (
+        {
+            "name": module_data["name"],
+            "path": str(py_file),
+            "imports": module_data["imports"],
+            "internal_deps": module_data["internal_deps"],
+        }
+        if module_data
+        else None
+    )

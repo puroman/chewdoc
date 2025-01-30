@@ -50,29 +50,21 @@ class chewedConfig(BaseModel):
         default=10, ge=1, description="Max lines in usage examples"
     )
     allow_namespace_packages: bool = Field(
-        True,
-        description="Recognize namespace packages without __init__.py"
+        True, description="Recognize namespace packages without __init__.py"
     )
     temp_dir: Path = Field(
         default_factory=lambda: Path("/tmp/chewed"),
         description="Temporary directory for package processing",
     )
     include_tests: bool = Field(
-        False, 
-        description="Include test modules in documentation"
+        False, description="Include test modules in documentation"
     )
     module_discovery_patterns: List[str] = Field(
-        default=[
-            "**/*.py", 
-            "!test_*.py", 
-            "!*/tests/*", 
-            "!*/_*"
-        ],
-        description="File patterns for module discovery (include/exclude)"
+        default=["**/*.py", "!test_*.py", "!*/tests/*", "!*/_*"],
+        description="File patterns for module discovery (include/exclude)",
     )
     namespace_fallback: bool = Field(
-        True,
-        description="Create minimal documentation for empty namespace packages"
+        True, description="Create minimal documentation for empty namespace packages"
     )
 
     model_config = ConfigDict(extra="forbid")

@@ -26,7 +26,7 @@ def analyze_package(
     version: Optional[str] = None,
     is_local: bool = True,
     config: Optional[chewedConfig] = None,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> Dict[str, Any]:
     """Analyze Python package and extract documentation metadata."""
     config = config or chewedConfig()
@@ -42,7 +42,7 @@ def analyze_package(
         if verbose:
             logger.info("🔍 Fetching package metadata...")
         package_info = get_package_metadata(source, version, is_local)
-        
+
         # Add fallback package name derivation
         package_name = package_info.get("package") or _derive_package_name(path)
         package_info["package"] = package_name
@@ -100,6 +100,7 @@ def analyze_package(
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
+
 
 def _derive_package_name(package_path: Path) -> str:
     """Fallback package name derivation from path"""

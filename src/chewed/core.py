@@ -49,10 +49,7 @@ def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
 
 
 def analyze_package(
-    source: str, 
-    is_local: bool, 
-    config: chewedConfig,
-    verbose: bool = False
+    source: str, is_local: bool, config: chewedConfig, verbose: bool = False
 ) -> dict:
     """Main analysis entry point with proper error handling"""
     try:
@@ -78,9 +75,9 @@ def analyze_package(
             "metadata": get_package_metadata(
                 path=package_path,
                 is_local=is_local,
-                version=getattr(config, "version", "0.0.0")
+                version=getattr(config, "version", "0.0.0"),
             ),
-            "config": config.dict()
+            "config": config.dict(),
         }
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
