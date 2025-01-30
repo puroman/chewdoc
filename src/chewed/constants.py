@@ -1,5 +1,5 @@
 """
-Centralized constants for chewdoc documentation generator
+Centralized constants for chewed documentation generator
 
 Organized into sections:
 - Template Configuration

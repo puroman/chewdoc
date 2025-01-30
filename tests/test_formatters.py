@@ -2,8 +2,8 @@ from src.chewed.formatters.myst_writer import MystWriter
 from pathlib import Path
 import ast
 import pytest
-from chewdoc.config import ChewdocConfig
-from chewdoc.utils import validate_ast
+from chewed.config import chewedConfig
+from chewed.utils import validate_ast
 
 
 def test_myst_writer_basic(tmp_path):
@@ -151,7 +151,7 @@ def test_myst_writer_config_initialization():
     writer = MystWriter()
     assert writer.config.max_example_lines == 10
 
-    custom_config = ChewdocConfig(max_example_lines=25)
+    custom_config = chewedConfig(max_example_lines=25)
     writer = MystWriter(config=custom_config)
     assert writer.config.max_example_lines == 25
 

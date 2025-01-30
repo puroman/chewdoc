@@ -13,7 +13,7 @@ build/*
 *.egg-info*
 .ipynb_checkpoints/
 
-# Chewdoc
+# chewed
 docs/*
 !docs/example/
 

@@ -4,13 +4,13 @@ import ast
 import fnmatch
 import logging
 from typing import Dict, List, Optional
-from chewed.config import ChewdocConfig
+from chewed.config import chewedConfig
 from chewed.ast_utils import extract_docstrings, extract_type_info
 
 logger = logging.getLogger(__name__)
 
 
-def process_modules(package_path: Path, config: ChewdocConfig) -> list:
+def process_modules(package_path: Path, config: chewedConfig) -> list:
     """Find and process modules in package with init.py handling"""
     modules = []
     valid_modules = 0
@@ -44,7 +44,7 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     return modules
 
 
-def _should_process(path: Path, config: ChewdocConfig) -> bool:
+def _should_process(path: Path, config: chewedConfig) -> bool:
     """Check if file should be processed"""
     return (
         path.name != "__init__.py" and  # Handled separately
@@ -54,7 +54,7 @@ def _should_process(path: Path, config: ChewdocConfig) -> bool:
 
 
 def _create_module_data(
-    file_path: Path, package_path: Path, config: ChewdocConfig
+    file_path: Path, package_path: Path, config: chewedConfig
 ) -> dict | None:
     """Create module data with robust error handling."""
     try:
@@ -86,7 +86,7 @@ def _create_module_data(
         return None
 
 
-def _is_excluded(path: Path, config: ChewdocConfig) -> bool:
+def _is_excluded(path: Path, config: chewedConfig) -> bool:
     """Check if path matches any exclude patterns"""
     # Convert exclude patterns to strings and filter invalid types
     exclude_patterns = [str(p) for p in config.exclude_patterns if isinstance(p, (str, Path))]
@@ -174,7 +174,7 @@ def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
     return imports
 
 
-def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
+def _find_constants(node: ast.AST, config: chewedConfig) -> Dict[str, Dict]:
     """Find and type-annotate module-level constants."""
     constants = {}
     for stmt in node.body:
@@ -204,7 +204,7 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
 
 
 class DocProcessor:
-    def __init__(self, config: ChewdocConfig, examples: Optional[List] = None):
+    def __init__(self, config: chewedConfig, examples: Optional[List] = None):
         self.config = config
         self.examples = self._validate_examples(examples or [])
 
@@ -258,7 +258,7 @@ stdlib_modules = {
 
 def _process_single_file(py_file: Path, package_path: Path) -> dict:
     """Process a single Python file and return module data"""
-    module_data = _create_module_data(py_file, package_path, ChewdocConfig())
+    module_data = _create_module_data(py_file, package_path, chewedConfig())
     return {
         "name": module_data["name"],
         "path": str(py_file),

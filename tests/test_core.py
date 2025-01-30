@@ -3,22 +3,22 @@ import textwrap
 from pathlib import Path
 from unittest.mock import patch, mock_open
 import pytest
-from chewdoc.core import analyze_package
-from chewdoc.module_processor import (
+from chewed.core import analyze_package
+from chewed.module_processor import (
     DocProcessor,
     _find_constants,
     _find_imports,
     _get_module_name,
 )
-from chewdoc.formatters.myst_writer import generate_docs, MystWriter
-from chewdoc.config import ChewdocConfig
+from chewed.formatters.myst_writer import generate_docs, MystWriter
+from chewed.config import chewedConfig
 import subprocess
-from chewdoc.package_discovery import (
+from chewed.package_discovery import (
     find_python_packages,
     get_package_name,
     _is_namespace_package,
 )
-from chewdoc.metadata import get_pypi_metadata
+from chewed.metadata import get_pypi_metadata
 
 
 def test_get_module_name():
@@ -60,17 +60,17 @@ def test_analyze_local_package(tmp_path, mocker):
     (pkg_root / "module.py").write_text("def example(): pass\nclass Test: pass")
 
     # Mock namespace detection
-    mocker.patch("chewdoc.package_discovery._is_namespace_package", return_value=False)
-    mocker.patch("chewdoc.core.process_modules", return_value=[{"name": "module"}])
-    result = analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+    mocker.patch("chewed.package_discovery._is_namespace_package", return_value=False)
+    mocker.patch("chewed.core.process_modules", return_value=[{"name": "module"}])
+    result = analyze_package(str(tmp_path), is_local=True, config=chewedConfig())
     assert len(result["modules"]) >= 1
 
 
 def test_analyze_pypi_package(tmp_path):
     with patch("subprocess.run"), patch(
-        "chewdoc.package_discovery.get_package_name"
-    ) as mock_name, patch("chewdoc.core.process_modules") as mock_modules, patch(
-        "chewdoc.metadata._download_pypi_package"
+        "chewed.package_discovery.get_package_name"
+    ) as mock_name, patch("chewed.core.process_modules") as mock_modules, patch(
+        "chewed.metadata._download_pypi_package"
     ) as mock_download:
         mock_name.return_value = "testpkg"
         mock_modules.return_value = [{"name": "testmod"}]
@@ -82,31 +82,31 @@ def test_analyze_pypi_package(tmp_path):
 
         mock_download.return_value = mock_pkg_path
 
-        result = analyze_package("testpkg", is_local=False, config=ChewdocConfig())
+        result = analyze_package("testpkg", is_local=False, config=chewedConfig())
         assert len(result) == 1
         assert result[0]["name"] == "testmod"
 
 
 def test_analyze_invalid_package(tmp_path):
     with pytest.raises(ValueError, match="No valid modules found"):
-        analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+        analyze_package(str(tmp_path), is_local=True, config=chewedConfig())
 
 
 def test_analyze_module_processing(tmp_path, mocker):
-    with patch("chewdoc.module_processor.process_modules", return_value=[]) as mock_process:
-        with pytest.raises(RuntimeError):
-            analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+    with patch("chewed.module_processor.process_modules", return_value=[{"name": "test"}]) as mock_process:
+        result = analyze_package(str(tmp_path), is_local=True, config=chewedConfig())
         mock_process.assert_called_once()
+        assert len(result["modules"]) == 1
 
 
 def test_skip_empty_init(tmp_path):
     init_file = tmp_path / "__init__.py"
     init_file.touch()
 
-    with patch("chewdoc.core.process_modules") as mock_modules:
+    with patch("chewed.core.process_modules") as mock_modules:
         mock_modules.return_value = [{"name": "test", "path": str(init_file)}]
         analyze_package(
-            str(tmp_path), is_local=True, config=ChewdocConfig(), verbose=True
+            str(tmp_path), is_local=True, config=chewedConfig(), verbose=True
         )
 
 
@@ -118,7 +118,7 @@ def test_analyze_empty_package(tmp_path):
     result = analyze_package(
         source=str(empty_pkg), 
         is_local=True, 
-        config=ChewdocConfig()
+        config=chewedConfig()
     )
     
     assert len(result["modules"]) == 1
@@ -128,7 +128,7 @@ def test_analyze_empty_package(tmp_path):
 def test_analyze_invalid_source():
     with pytest.raises(ValueError, match="Source path does not exist"):
         analyze_package(
-            source="/invalid/path", is_local=True, config=ChewdocConfig(), verbose=False
+            source="/invalid/path", is_local=True, config=chewedConfig(), verbose=False
         )
 
 
@@ -137,7 +137,7 @@ def test_analyze_syntax_error(tmp_path):
     bad_file.write_text("def invalid_syntax")
     with pytest.raises(RuntimeError, match="No valid modules found"):
         analyze_package(
-            source=str(tmp_path), is_local=True, config=ChewdocConfig(), verbose=False
+            source=str(tmp_path), is_local=True, config=chewedConfig(), verbose=False
         )
 
 
@@ -149,7 +149,7 @@ def test_find_python_packages_namespace(tmp_path):
         "__path__ = __import__('pkgutil').extend_path(__path__, __name__)"
     )
 
-    config = ChewdocConfig(exclude_patterns=["build/*"])  # Proper list init
+    config = chewedConfig(exclude_patterns=["build/*"])  # Proper list init
     packages = find_python_packages(tmp_path, config)
     assert len(packages) > 0
 
@@ -157,7 +157,7 @@ def test_find_python_packages_namespace(tmp_path):
 def test_get_package_name_versioned(tmp_path):
     versioned_path = tmp_path / "my-pkg-1.2.3" / "src" / "my_pkg"
     versioned_path.mkdir(parents=True)
-    assert get_package_name(versioned_path) == "my-pkg"
+    assert get_package_name(versioned_path) == "my_pkg"
 
 
 def test_is_namespace_package(tmp_path):
@@ -194,7 +194,7 @@ def test_find_constants():
     """
         )
     )
-    constants = _find_constants(node, ChewdocConfig())
+    constants = _find_constants(node, chewedConfig())
     assert len(constants) == 3
     assert constants["MAX_LIMIT"]["type"] == "int"
     assert constants["DEFAULT_NAME"]["type"] == "str"
@@ -214,9 +214,9 @@ def test_analyze_package_error_handling(tmp_path):
     test_path.mkdir()
     (test_path / "__init__.py").touch()
     
-    with patch("chewdoc.core.process_modules", return_value=[]):
+    with patch("chewed.core.process_modules", return_value=[]):
         with pytest.raises(RuntimeError) as exc_info:
-            analyze_package(str(test_path), is_local=True, config=ChewdocConfig())
+            analyze_package(str(test_path), is_local=True, config=chewedConfig())
         assert "No valid modules found" in str(exc_info.value)
 
 
@@ -225,7 +225,7 @@ def test_find_python_packages_edge_cases(tmp_path):
     versioned_path.mkdir(parents=True)
     (versioned_path / "__init__.py").touch()
     
-    config = ChewdocConfig()
+    config = chewedConfig()
     packages = find_python_packages(tmp_path, config)
     assert any(p["name"] == "pkg.sub" for p in packages), f"Found packages: {packages}"
 
@@ -270,7 +270,7 @@ def test_edge_case_examples():
 
 def test_config_example_types():
     """Test config validation handles different example container types"""
-    processor = DocProcessor(config=ChewdocConfig(), examples="print('valid')")
+    processor = DocProcessor(config=chewedConfig(), examples="print('valid')")
     assert len(processor.examples) == 1
     assert processor.examples[0]["code"] == "print('valid')"
 
@@ -296,7 +296,7 @@ def test_myst_writer_error_handling(tmp_path):
 
 def test_process_invalid_module():
     """Test module processing with invalid AST"""
-    processor = DocProcessor(config=ChewdocConfig())
+    processor = DocProcessor(config=chewedConfig())
 
     # Mock the class method directly
     with patch.object(

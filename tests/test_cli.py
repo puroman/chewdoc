@@ -1,18 +1,18 @@
 import os
-from chewdoc.config import ChewdocConfig
+from chewed.config import chewedConfig
 import pytest
 from click.testing import CliRunner
 from unittest.mock import patch, MagicMock
-from chewdoc.cli import cli
-from chewdoc._version import __version__
+from chewed.cli import cli
+from chewed._version import __version__
 import ast
 
 
 def test_cli_local_package(tmp_path):
     runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package") as mock_analyze, patch(
+    with patch("chewed.cli.analyze_package") as mock_analyze, patch(
         "pathlib.Path.exists"
-    ) as mock_exists, patch("chewdoc.cli.generate_docs") as _:
+    ) as mock_exists, patch("chewed.cli.generate_docs") as _:
         mock_exists.return_value = True
         mock_analyze.return_value = {
             "name": "testpkg",
@@ -60,7 +60,7 @@ def test_cli_local_package(tmp_path):
                     "constants": {},
                 }
             ],
-            "config": ChewdocConfig(),
+            "config": chewedConfig(),
         }
 
         result = runner.invoke(
@@ -102,8 +102,8 @@ def test_cli_missing_source_type():
 
 def test_cli_verbose_output(tmp_path):
     runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package") as mock_analyze, patch(
-        "chewdoc.cli.generate_docs"
+    with patch("chewed.cli.analyze_package") as mock_analyze, patch(
+        "chewed.cli.generate_docs"
     ):
         mock_analyze.return_value = minimal_valid_package()
         result = runner.invoke(
@@ -116,7 +116,7 @@ def test_cli_verbose_output(tmp_path):
 
 def test_cli_exception_handling(tmp_path):
     runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package") as mock_analyze:
+    with patch("chewed.cli.analyze_package") as mock_analyze:
         mock_analyze.side_effect = ValueError("Test error")
         result = runner.invoke(cli, ["chew", str(tmp_path), "--local", "-o", "docs"])
         assert result.exit_code == 1
@@ -142,7 +142,7 @@ def minimal_valid_package():
 
 def test_cli_output_directory(tmp_path):
     runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package"), patch("chewdoc.cli.generate_docs"):
+    with patch("chewed.cli.analyze_package"), patch("chewed.cli.generate_docs"):
         result = runner.invoke(
             cli, ["chew", str(tmp_path), "--local", "-o", "custom_docs"]
         )
@@ -152,6 +152,6 @@ def test_cli_output_directory(tmp_path):
 
 def test_cli_pypi_package():
     runner = CliRunner()
-    with patch("chewdoc.cli.analyze_package"), patch("chewdoc.cli.generate_docs"):
+    with patch("chewed.cli.analyze_package"), patch("chewed.cli.generate_docs"):
         result = runner.invoke(cli, ["chew", "requests", "--pypi", "-o", "docs"])
         assert result.exit_code == 0

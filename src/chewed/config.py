@@ -1,5 +1,5 @@
 """
-Configuration handling for chewdoc documentation generator
+Configuration handling for chewed documentation generator
 """
 
 from pathlib import Path
@@ -23,8 +23,8 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 
-class ChewdocConfig(BaseModel):
-    """Main configuration model for chewdoc"""
+class chewedConfig(BaseModel):
+    """Main configuration model for chewed"""
 
     exclude_patterns: List[str] = Field(
         default=DEFAULT_EXCLUSIONS,
@@ -54,17 +54,17 @@ class ChewdocConfig(BaseModel):
         description="Whether to consider namespace packages without __init__.py",
     )
     temp_dir: Path = Field(
-        default_factory=lambda: Path("/tmp/chewdoc"),
+        default_factory=lambda: Path("/tmp/chewed"),
         description="Temporary directory for package processing",
     )
 
     model_config = ConfigDict(extra="forbid")
 
     @classmethod
-    def from_toml(cls, path: Path) -> "ChewdocConfig":
+    def from_toml(cls, path: Path) -> "chewedConfig":
         """Load config from TOML file"""
         config_data = tomllib.load(path)
-        return cls(**config_data.get("tool", {}).get("chewdoc", {}))
+        return cls(**config_data.get("tool", {}).get("chewed", {}))
 
 
 class ExampleSchema(BaseModel):
@@ -104,11 +104,11 @@ def validate_examples(examples: list) -> list:
     return validated
 
 
-def load_config(path: Optional[Path] = None) -> ChewdocConfig:
+def load_config(path: Optional[Path] = None) -> chewedConfig:
     """Load configuration from file or return defaults"""
     if path and path.exists():
         with open(path, "rb") as f:
-            config_data = tomllib.load(f).get("tool", {}).get("chewdoc", {})
+            config_data = tomllib.load(f).get("tool", {}).get("chewed", {})
 
             # Add type enforcement for examples
             raw_examples = config_data.get("examples", [])
@@ -120,5 +120,5 @@ def load_config(path: Optional[Path] = None) -> ChewdocConfig:
 
             config_data["examples"] = validate_examples(raw_examples)
 
-            return ChewdocConfig(**config_data)
-    return ChewdocConfig()
+            return chewedConfig(**config_data)
+    return chewedConfig()

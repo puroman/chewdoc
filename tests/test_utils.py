@@ -2,7 +2,7 @@ from src.chewed.utils import safe_write
 import pytest
 from pathlib import Path
 import ast
-from src.chewed.config import ChewdocConfig
+from src.chewed.config import chewedConfig
 from src.chewed.utils import (
     format_function_signature,
     extract_constant_values,
@@ -35,7 +35,7 @@ def test_safe_write_overwrite(tmp_path):
 def test_format_function_signature():
     args = ast.arguments(args=[ast.arg(arg="x"), ast.arg(arg="y")])
     returns = ast.Name(id="float")
-    config = ChewdocConfig()
+    config = chewedConfig()
     sig = format_function_signature(args, returns, config=config)
     assert sig == "(x, y) -> float"
 
@@ -71,7 +71,7 @@ def test_validate_ast_empty_with_docstring():
 def test_get_annotation_complex():
     """Test annotation formatting with complex types"""
     node = ast.parse("def f() -> Dict[str, List[int]]: pass").body[0].returns
-    result = get_annotation(node, ChewdocConfig())
+    result = get_annotation(node, chewedConfig())
     assert "Dict[str, List[int]]" in result
 
 

@@ -1,4 +1,4 @@
-# ChewDoc
+# chewed
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -26,11 +26,11 @@
 ```bash
 # Install with pip substitute
 python3 -m pip install uv
-uv pip install git+https://github.com/puroman/chewdoc.git
+uv pip install git+https://github.com/puroman/chewed.git
 
 # Editable install for contributors
-git clone https://github.com/puroman/chewdoc.git
-cd chewdoc && uv pip install -e .
+git clone https://github.com/puroman/chewed.git
+cd chewed && uv pip install -e .
 ```
 
 ## Get Started
@@ -46,20 +46,20 @@ chew requests --output docs/requests --local
 
 ### Research Notes
 ```python
-from chewdoc import analyze_package, generate_docs
+from chewed import analyze_package, generate_docs
 
 # Experimental analysis pipeline
 results = analyze_package("mypackage")
 generate_docs(results, output_format="myst")
 ```
 
-> **Note:** ChewDoc is a research prototype - interfaces may evolve as we explore new documentation paradigms, LLM-assisted workflows, and agentic automation.
+> **Note:** chewed is a research prototype - interfaces may evolve as we explore new documentation paradigms, LLM-assisted workflows, and agentic automation.
 
 ## Configuration
 
 Add to `pyproject.toml`:
 ```toml
-[tool.chewdoc]
+[tool.chewed]
 output_format = "myst"
 exclude_patterns = ["tests/*"]
 known_types = { "DataFrame" = "pandas.DataFrame" }
@@ -74,9 +74,9 @@ known_types = { "DataFrame" = "pandas.DataFrame" }
 ## Project Structure
 
 ```
-chewdoc/
+chewed/
 ├── src/
-│   └── chewdoc/       # Core research implementation
+│   └── chewed/       # Core research implementation
 │       ├── analysis/  # AST processing components
 │       └── formats/   # Output format handlers
 ├── tests/             # Experimental validation

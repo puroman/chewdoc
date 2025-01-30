@@ -6,7 +6,7 @@ from chewed.utils import (
     infer_responsibilities,
     format_function_signature,
 )
-from chewed.config import ChewdocConfig
+from chewed.config import chewedConfig
 
 import ast
 import click
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class MystWriter:
-    def __init__(self, config: Optional[ChewdocConfig] = None):
-        self.config = config or ChewdocConfig()
+    def __init__(self, config: Optional[chewedConfig] = None):
+        self.config = config or chewedConfig()
         self.package_data = {}
         self.current_module = {}  # Initialize here instead of in generate()
         # Set default if not present in config

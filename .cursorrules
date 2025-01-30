@@ -1,7 +1,7 @@
 {
     "rules": [
         {
-            "pattern": "src/chewdoc",
+            "pattern": "src/chewed",
             "hints": [
                 "Follow PEP8 standards",
                 "Use absolute imports",
@@ -24,15 +24,15 @@
             ]
         },
         {
-            "pattern": "src/chewdoc/config.py",
+            "pattern": "src/chewed/config.py",
             "hints": [
-                "Validate TOML keys against ChewdocConfig model",
+                "Validate TOML keys against chewedConfig model",
                 "Handle missing config gracefully",
                 "Merge default config with user overrides"
             ]
         },
         {
-            "pattern": "src/chewdoc/formatters/",
+            "pattern": "src/chewed/formatters/",
             "hints": [
                 "Sanitize output paths before writing",
                 "Validate template variables before rendering",
@@ -40,7 +40,7 @@
             ]
         },
         {
-            "pattern": "src/chewdoc/__main__",
+            "pattern": "src/chewed/__main__",
             "hints": [
                 "Use Click for all CLI argument handling",
                 "Keep entry point simple - delegate to CLI module",

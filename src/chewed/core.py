@@ -5,7 +5,7 @@ from chewed.module_processor import process_modules, DocProcessor
 from chewed.package_discovery import find_python_packages
 from chewed.package_analysis import analyze_package, analyze_relationships
 from chewed.doc_generation import generate_docs
-from chewed.config import ChewdocConfig, load_config
+from chewed.config import chewedConfig, load_config
 import logging
 import ast
 import sys

@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Optional
-from .config import ChewdocConfig
+from .config import chewedConfig
 import fnmatch
 import re
 
@@ -42,7 +42,7 @@ def _is_namespace_package(pkg_path: Path) -> bool:
     return False
 
 
-def find_python_packages(path: Path, config: ChewdocConfig) -> list:
+def find_python_packages(path: Path, config: chewedConfig) -> list:
     """Find Python packages in directory with better pattern matching"""
     packages = []
 
@@ -65,7 +65,7 @@ def find_python_packages(path: Path, config: ChewdocConfig) -> list:
     return packages
 
 
-def _is_package_dir(path: Path, config: ChewdocConfig) -> bool:
+def _is_package_dir(path: Path, config: chewedConfig) -> bool:
     """Check if directory is a Python package"""
     # Allow namespace packages (no __init__.py) if configured
     if config.allow_namespace_packages:
@@ -88,7 +88,7 @@ def _build_full_pkg_name(pkg_path: Path, root_dir: Path) -> str:
     return ".".join(parts) if parts else get_package_name(pkg_path)
 
 
-def _is_excluded(path: Path, config: ChewdocConfig) -> bool:
+def _is_excluded(path: Path, config: chewedConfig) -> bool:
     """Check if path matches any exclude patterns"""
     exclude_patterns = config.exclude_patterns  # Access list directly
     str_path = str(path.resolve())

@@ -1,5 +1,5 @@
 import ast
-from chewed.config import ChewdocConfig
+from chewed.config import chewedConfig
 from typing import Any, List, Tuple, Union, Optional, Dict
 from pathlib import Path
 import logging
@@ -9,7 +9,7 @@ import os
 logger = logging.getLogger(__name__)
 
 
-def get_annotation(node: ast.AST, config: ChewdocConfig) -> str:
+def get_annotation(node: ast.AST, config: chewedConfig) -> str:
     """Simplify type annotations for documentation"""
     annotation = ast.unparse(node).strip()
     # Replace full module paths with base names
@@ -87,7 +87,7 @@ def find_usage_examples(node: ast.AST) -> list:
 
 
 def format_function_signature(
-    args: ast.arguments, returns: Optional[ast.AST], config: ChewdocConfig
+    args: ast.arguments, returns: Optional[ast.AST], config: chewedConfig
 ) -> str:
     """Format function signature with proper argument handling"""
     args_list = []

@@ -1,5 +1,5 @@
 import pytest
-from chewdoc.constants import (
+from chewed.constants import (
     TEMPLATE_VERSION,
     DEFAULT_EXCLUSIONS,
     ERROR_TEMPLATES,

@@ -7,7 +7,7 @@ from .module_processor import process_modules
 from .metadata import get_package_metadata
 from .relationships import analyze_relationships
 from .ast_utils import extract_docstrings, extract_type_info
-from .config import ChewdocConfig
+from .config import chewedConfig
 from .utils import find_usage_examples, extract_constant_values, validate_ast
 from .package_discovery import (
     find_python_packages,
@@ -25,11 +25,11 @@ def analyze_package(
     source: str,
     version: Optional[str] = None,
     is_local: bool = True,
-    config: Optional[ChewdocConfig] = None,
+    config: Optional[chewedConfig] = None,
     verbose: bool = False
 ) -> Dict[str, Any]:
     """Analyze Python package and extract documentation metadata."""
-    config = config or ChewdocConfig()
+    config = config or chewedConfig()
     try:
         path = Path(str(source)).resolve()
         if not path.exists():

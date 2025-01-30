@@ -96,7 +96,7 @@ doc docs: install-dev
 	@echo "📚 Generating project documentation..."
 	@mkdir -p $(DOCS_DIR)
 	@echo "🕒 Timing documentation generation..."
-	@time $(PYTHON) -m chewdoc chew src/chewdoc/ --output $(DOCS_DIR)/ --local --verbose
+	@time $(PYTHON) -m chewed chew src/chewed/ --output $(DOCS_DIR)/ --local --verbose
 	@echo "✅ Documentation generated at: $(DOCS_DIR)/"
 
 clean clear:
