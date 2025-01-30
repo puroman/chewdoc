@@ -20,6 +20,18 @@ COVERAGE_MIN ?= 80
 # Helper function to handle test markers
 MARKER_OPTION = $(if $(TEST_MARKERS),-m "$(TEST_MARKERS)",)
 
+# Helper function to check and activate venv if needed
+define activate_venv
+	@if [ ! -f "$(VENV)/bin/activate" ]; then \
+		echo "Virtual environment not found. Creating one..."; \
+		$(MAKE) venv; \
+	fi
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "Activating virtual environment..."; \
+		. $(VENV)/bin/activate; \
+	fi
+endef
+
 .PHONY: venv test test-cov test-html test-xml test-parallel test-watch clean clear docs lint format help
 
 help:
@@ -59,17 +71,21 @@ venv:
 install: venv install-prod install-dev
 
 install-prod: venv
+	$(call activate_venv)
 	@echo "Installing production dependencies..."
 	$(UV) pip install -e .
 
 install-dev: venv
+	$(call activate_venv)
 	@echo "Installing development dependencies..."
 	$(UV) pip install --python $(VENV)/bin/python -e .[dev]
 
 test: venv
+	$(call activate_venv)
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
 covtest-cov: venv
+	$(call activate_venv)
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) \
 		--cov=src \
 		--cov-report=$(COVERAGE_FORMAT) \
@@ -85,14 +101,17 @@ test-xml: test-cov
 	@echo "Coverage report generated in coverage.xml"
 
 test-parallel: venv
+	$(call activate_venv)
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) \
 		-n $(TEST_WORKERS) \
 		$(TEST_PATH)
 
 test-watch: venv
+	$(call activate_venv)
 	$(PYTHON) -m pytest-watch -- $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
 doc docs: install-dev
+	$(call activate_venv)
 	@echo "📚 Generating project documentation..."
 	@mkdir -p $(DOCS_DIR)
 	@echo "🕒 Timing documentation generation..."
@@ -103,9 +122,11 @@ clean clear:
 	rm -rf .venv* .coverage .pytest_cache build dist *.egg-info docs htmlcov coverage.xml $(shell find . -name '__pycache__' -type d)
 
 lint: venv
+	$(call activate_venv)
 	$(PYTHON) -m flake8 --max-line-length=88 --ignore=F401,E203,W503 src tests
 
 format: venv
+	$(call activate_venv)
 	$(PYTHON) -m black src tests
 
 # Default target
