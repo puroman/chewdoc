@@ -4,14 +4,30 @@ import subprocess
 import tempfile
 import tomllib
 from typing import Dict, Optional, Any
+from datetime import datetime
 
 
 def get_package_metadata(
-    source: str, version: Optional[str], is_local: bool
-) -> Dict[str, Any]:
-    if is_local:
-        return get_local_metadata(Path(source))
-    return get_pypi_metadata(source, version)
+    path: Path,
+    is_local: bool,
+    version: str = "0.0.0"
+) -> dict:
+    """Get package metadata from local path or PyPI"""
+    meta = {
+        "name": path.name,
+        "version": version,
+        "source": "local" if is_local else "pypi",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    if not is_local:
+        try:
+            pypi_meta = get_pypi_metadata(path.name)
+            meta.update(pypi_meta)
+        except Exception as e:
+            logger.warning(f"Couldn't fetch PyPI metadata: {str(e)}")
+    
+    return meta
 
 
 def get_local_metadata(path: Path) -> dict:

@@ -76,7 +76,7 @@ def analyze_package(
             "package": get_package_name(package_path),
             "modules": all_modules,
             "metadata": get_package_metadata(
-                package_path=package_path,
+                path=package_path,
                 is_local=is_local,
                 version=getattr(config, "version", "0.0.0")
             ),
