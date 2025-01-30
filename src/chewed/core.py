@@ -97,9 +97,9 @@ def analyze_package(
             "package": get_package_name(package_path),
             "modules": all_modules,
             "metadata": get_package_metadata(
-                path=package_path,
+                source=str(package_path.resolve()),
                 is_local=is_local,
-                version=getattr(config, "version", "0.0.0"),
+                version=getattr(config, "version", "0.0.0")
             ),
             "config": config.model_dump(),
         }
