@@ -106,7 +106,9 @@ def test_cli_verbose_output(tmp_path):
         "chewdoc.cli.generate_docs"
     ):
         mock_analyze.return_value = minimal_valid_package()
-        result = runner.invoke(cli, ["chew", str(tmp_path), "--local", "-o", "docs", "-v"])
+        result = runner.invoke(
+            cli, ["chew", str(tmp_path), "--local", "-o", "docs", "-v"]
+        )
         assert "📋 Found 0 usage examples" in result.output
         assert "⏱️  Documentation chewed" in result.output
         assert "📂 Output location" in result.output
@@ -141,7 +143,9 @@ def minimal_valid_package():
 def test_cli_output_directory(tmp_path):
     runner = CliRunner()
     with patch("chewdoc.cli.analyze_package"), patch("chewdoc.cli.generate_docs"):
-        result = runner.invoke(cli, ["chew", str(tmp_path), "--local", "-o", "custom_docs"])
+        result = runner.invoke(
+            cli, ["chew", str(tmp_path), "--local", "-o", "custom_docs"]
+        )
         assert result.exit_code == 0
         assert os.path.exists("custom_docs")
 

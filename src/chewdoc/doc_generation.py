@@ -6,10 +6,11 @@ from .types import ModuleInfo
 
 logger = logging.getLogger(__name__)
 
+
 def generate_docs(
     package_info: Union[Dict[str, Any], List[ModuleInfo]],
     output_path: Path,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> None:
     """
     Generate documentation for a package.
@@ -26,7 +27,7 @@ def generate_docs(
     if isinstance(package_info, list):
         package_info = {
             "package": "unknown",  # Default package name
-            "modules": package_info
+            "modules": package_info,
         }
 
     # Validate package_info
@@ -53,4 +54,4 @@ def generate_docs(
             f.write(f"# Module: {module_name}\n\n")
 
     if verbose:
-        logger.info(f"Generated documentation for {len(modules)} modules") 
+        logger.info(f"Generated documentation for {len(modules)} modules")

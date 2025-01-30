@@ -47,13 +47,13 @@ help:
 	@echo "  COVERAGE_MIN      - Minimum coverage percentage (default: 80)"
 
 venv:
+	@echo "Checking system requirements..."
+	@command -v uv >/dev/null 2>&1 || { echo >&2 "Error: uv not found. Please install uv first (https://github.com/astral-sh/uv)."; exit 1; }
 	@echo "Creating virtual environment..."
 	rm -rf $(VENV)
-	python3 -m venv $(VENV)
-	@echo "Installing uv..."
-	$(PYTHON) -m pip install uv
+	uv venv $(VENV)
 	@echo "Installing base dependencies..."
-	$(UV) pip install -e .[dev]
+	uv pip install --python $(VENV)/bin/python -e .[dev]
 
 # Installation targets
 install: venv install-prod install-dev
@@ -92,15 +92,15 @@ test-parallel: venv
 test-watch: venv
 	$(PYTHON) -m pytest-watch -- $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
-doc docs: venv
+doc docs: install-dev
 	@echo "📚 Generating project documentation..."
 	@mkdir -p $(DOCS_DIR)
 	@echo "🕒 Timing documentation generation..."
-	@time $(PYTHON) -m chewdoc chew src/chewdoc/ --local --output $(DOCS_DIR)/ --verbose
+	@time $(PYTHON) -m chewdoc chew src/chewdoc/ --output $(DOCS_DIR)/ --local --verbose
 	@echo "✅ Documentation generated at: $(DOCS_DIR)/"
 
 clean clear:
-	rm -rf $(VENV) .coverage .pytest_cache build dist *.egg-info docs htmlcov coverage.xml $(shell find . -name '__pycache__' -type d)
+	rm -rf .venv* .coverage .pytest_cache build dist *.egg-info docs htmlcov coverage.xml $(shell find . -name '__pycache__' -type d)
 
 lint: venv
 	$(PYTHON) -m flake8 src tests

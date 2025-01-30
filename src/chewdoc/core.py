@@ -14,23 +14,29 @@ from .types import ModuleInfo  # Relative import
 
 logger = logging.getLogger(__name__)
 
+
 @click.command()
 @click.argument("source", type=click.Path(exists=True))
-@click.option("--output", "-o", required=True, type=click.Path(), help="Output directory")
+@click.option(
+    "--output", "-o", required=True, type=click.Path(), help="Output directory"
+)
 @click.option("--local/--pypi", default=True, help="Local package or PyPI package")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def cli(source: str, output: str, local: bool, verbose: bool) -> None:
     """Main entry point for package analysis"""
     config = load_config()
-    package_info = analyze_package(source, is_local=local, config=config, verbose=verbose)
+    package_info = analyze_package(
+        source, is_local=local, config=config, verbose=verbose
+    )
     generate_docs(package_info, Path(output), verbose=verbose)
+
 
 def analyze_package(
     source: str,
     is_local: bool = False,
     config: Optional[ChewdocConfig] = None,
     verbose: bool = False,
-    version: Optional[str] = None
+    version: Optional[str] = None,
 ) -> List[ModuleInfo]:
     """
     Analyze a package and extract module information.
@@ -50,7 +56,7 @@ def analyze_package(
 
     # Validate source path
     source_path = Path(source)
-    
+
     # Handle PyPI package download if not local
     if not is_local:
         try:
@@ -62,7 +68,7 @@ def analyze_package(
             source_path = config.temp_dir / source
             source_path.mkdir(parents=True, exist_ok=True)
             (source_path / "__init__.py").touch()
-    
+
     # Validate source path
     if not source_path.exists():
         raise ValueError(f"Source path does not exist: {source}")
@@ -80,15 +86,20 @@ def analyze_package(
 
     return modules
 
+
 def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
     imports = []
     stdlib_modules = sys.stdlib_module_names
-    
+
     for node in ast.walk(node):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
-                full_path = alias.name if isinstance(node, ast.Import) else f"{node.module}.{alias.name}"
-                first_part = full_path.split('.')[0]
+                full_path = (
+                    alias.name
+                    if isinstance(node, ast.Import)
+                    else f"{node.module}.{alias.name}"
+                )
+                first_part = full_path.split(".")[0]
                 import_type = "stdlib" if first_part in stdlib_modules else "external"
                 imports.append({"full_path": full_path, "type": import_type})
     return imports

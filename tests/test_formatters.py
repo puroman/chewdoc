@@ -104,22 +104,19 @@ def test_myst_writer_error_handling(tmp_path):
     writer = MystWriter()
     package_info = {
         "package": "testpkg",
-        "modules": [{
-            "name": "broken_mod",
-            "type_info": {
-                "functions": {
-                    "bad_func": {
-                        "args": "invalid",
-                        "returns": "str"
-                    }
-                }
+        "modules": [
+            {
+                "name": "broken_mod",
+                "type_info": {
+                    "functions": {"bad_func": {"args": "invalid", "returns": "str"}}
+                },
             }
-        }]
+        ],
     }
 
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "broken_mod.md").read_text()
-    
+
     assert "bad_func()  # Unable to parse arguments" in content
 
 
@@ -152,7 +149,7 @@ def test_myst_writer_config_initialization():
     """Test MystWriter config handling"""
     writer = MystWriter()
     assert writer.config.max_example_lines == 10
-    
+
     custom_config = ChewdocConfig(max_example_lines=25)
     writer = MystWriter(config=custom_config)
     assert writer.config.max_example_lines == 25
@@ -161,10 +158,10 @@ def test_myst_writer_config_initialization():
 def test_myst_writer_format_dependencies():
     """Test dependency formatting edge cases"""
     writer = MystWriter()
-    
+
     # Test empty dependencies
     assert "No internal dependencies" in writer._format_dependencies([])
-    
+
     # Test dependency cleaning
     deps = ["my.module", "another-module"]
     result = writer._format_dependencies(deps)
@@ -177,7 +174,7 @@ def test_myst_writer_format_metadata():
     writer = MystWriter()
     minimal_data = {"package": "testpkg"}
     result = writer._format_metadata(minimal_data)
-    
+
     assert "testpkg" in result
     assert "0.0.0" in result  # Default version
     assert "Unknown Author" in result
@@ -186,16 +183,19 @@ def test_myst_writer_format_metadata():
 def test_myst_writer_format_code_structure():
     """Test AST code structure formatting"""
     writer = MystWriter()
-    
+
     from textwrap import dedent
-    code = dedent("""
+
+    code = dedent(
+        """
     class MyClass:
         def my_method(self):
             pass
-    """)
+    """
+    )
     tree = ast.parse(code)
     result = writer._format_code_structure(tree)
-    
+
     assert "Class: MyClass" in result
     assert "Method: my_method" in result
 
@@ -205,14 +205,14 @@ def test_myst_writer_format_imports_edge_cases():
     writer = MystWriter()
     writer.current_module = {"type_info": {}}
     package = "testpkg"
-    
+
     imports = [
         {"name": "os", "full_path": "os", "source": ""},
         {"name": "internal", "full_path": "testpkg.sub", "source": "testpkg.sub"},
         {"name": "numpy", "full_path": "numpy.array", "source": "numpy"},
     ]
     result = writer._format_imports(imports, package)
-    
+
     assert "Standard Library" in result
     assert "Internal Dependencies" in result
     assert "External Dependencies" in result
@@ -223,19 +223,18 @@ def test_myst_writer_format_module_error_handling():
     """Test error handling in module formatting"""
     writer = MystWriter()
     writer.package_data = {"package": "testpkg"}
-    
-    result = writer._format_module_content({
-        "name": "bad_module",
-        "type_info": {
-            "functions": {
-                "bad_func": {
-                    "args": {"args": "not-a-list"},
-                    "returns": "str"
+
+    result = writer._format_module_content(
+        {
+            "name": "bad_module",
+            "type_info": {
+                "functions": {
+                    "bad_func": {"args": {"args": "not-a-list"}, "returns": "str"}
                 }
-            }
+            },
         }
-    })
-    
+    )
+
     assert "bad_func" in result
     assert "Invalid arguments" in result
 
@@ -243,12 +242,8 @@ def test_myst_writer_format_module_error_handling():
 def test_myst_writer_example_validation():
     """Test example formatting with invalid entries"""
     writer = MystWriter()
-    examples = [
-        {"invalid": "structure"},
-        12345,
-        {"code": "valid = True"}
-    ]
-    
+    examples = [{"invalid": "structure"}, 12345, {"code": "valid = True"}]
+
     result = writer._format_usage_examples(examples)
     assert "valid = True" in result
     assert "No examples available" not in result
@@ -262,11 +257,11 @@ def test_myst_writer_class_formatting():
         "methods": {
             "my_method": {
                 "args": ast.parse("def my_method(self): pass").body[0].args,
-                "doc": "Method docs"
+                "doc": "Method docs",
             }
-        }
+        },
     }
-    
+
     result = writer._format_class("MyClass", class_info)
     assert "MyClass" in result
     assert "my_method" in result
@@ -284,16 +279,16 @@ def test_myst_writer_variable_formatting(tmp_path):
                     "variables": {
                         "STR_VAR": "hello",  # String value
                         "DICT_VAR": {"value": 42},  # Normal dict format
-                        "INT_VAR": 100  # Direct value
+                        "INT_VAR": 100,  # Direct value
                     }
-                }
+                },
             }
-        ]
+        ],
     }
-    
+
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "var_module.md").read_text()
-    
+
     assert "### Variables" in content
     assert "- `STR_VAR`: hello" in content
     assert "- `DICT_VAR`: 42" in content
@@ -312,14 +307,14 @@ def test_myst_writer_invalid_function_args(tmp_path):
                     "functions": {
                         "broken_func": {
                             "args": {"invalid": "structure"},
-                            "returns": "str"
+                            "returns": "str",
                         }
                     }
-                }
+                },
             }
-        ]
+        ],
     }
-    
+
     # Should not raise an error
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "bad_args.md").read_text()
@@ -338,10 +333,69 @@ def test_format_function_with_ast_arguments():
     """Test function formatting with real AST arguments"""
     writer = MystWriter()
     func_ast = ast.parse("def test(a: int, b: str = '') -> bool: pass").body[0]
-    
-    result = writer._format_function("test", {
-        "args": func_ast.args,
-        "returns": func_ast.returns
-    })
-    
+
+    result = writer._format_function(
+        "test", {"args": func_ast.args, "returns": func_ast.returns}
+    )
+
     assert "test(a: int, b: str = '') -> bool" in result
+
+
+def test_module_content_generation(tmp_path):
+    """Test complete module content generation"""
+    writer = MystWriter()
+    module_data = {
+        "name": "test_module",
+        "docstrings": {"module:1": "Test module documentation"},
+        "imports": [
+            {"name": "os", "full_path": "os", "source": ""},
+            {"name": "sys", "full_path": "sys", "source": ""},
+        ],
+        "type_info": {
+            "functions": {
+                "test_func": {
+                    "doc": "Test function",
+                    "args": ["arg1", "arg2"],
+                    "returns": "str",
+                }
+            }
+        },
+    }
+
+    package_data = {"package": "testpkg", "modules": [module_data]}
+
+    writer.generate(package_data, tmp_path)
+    content = (tmp_path / "test_module.md").read_text()
+
+    assert "# Module: test_module" in content
+    assert "Test module documentation" in content
+    assert "## Dependencies" in content
+    assert "## API Reference" in content
+    assert "test_func" in content
+
+
+def test_minimal_module_formatting(tmp_path):
+    """Test formatting of minimal module data"""
+    writer = MystWriter()
+    package_data = {
+        "package": "testpkg",
+        "modules": [
+            {
+                "name": "core",
+                "type_info": {
+                    "functions": {
+                        "main": {"args": [], "returns": None, "doc": "Main entry point"}
+                    }
+                },
+            }
+        ],
+    }
+
+    writer.generate(package_data, tmp_path)
+    content = (tmp_path / "core.md").read_text()
+
+    assert "# Module: core" in content
+    assert "## Overview" in content
+    assert "## API Reference" in content
+    assert "### Functions" in content
+    assert "main" in content

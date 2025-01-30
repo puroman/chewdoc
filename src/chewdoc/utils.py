@@ -73,11 +73,8 @@ def validate_ast(node: ast.AST) -> None:
         raise ValueError("Invalid AST structure - missing body attribute")
 
     # Allow modules with any executable statements, not just assignments/defs
-    has_content = any(
-        not isinstance(stmt, (ast.Expr, ast.Pass))
-        for stmt in node.body
-    )
-    
+    has_content = any(not isinstance(stmt, (ast.Expr, ast.Pass)) for stmt in node.body)
+
     if not has_content:
         has_docstring = any(
             isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
@@ -98,7 +95,7 @@ def format_function_signature(
     """Format function signature with proper argument handling"""
     args_list = []
     defaults = [None] * (len(args.args) - len(args.defaults)) + list(args.defaults)
-    
+
     for arg, default in zip(args.args, defaults):
         arg_str = arg.arg
         if arg.annotation:
@@ -107,11 +104,11 @@ def format_function_signature(
             default_src = ast.unparse(default).strip()
             arg_str += f" = {default_src}"
         args_list.append(arg_str)
-    
+
     return_str = ""
     if returns:
         return_str = f" -> {get_annotation(returns, config)}"
-        
+
     return f"({', '.join(args_list)}){return_str}"
 
 

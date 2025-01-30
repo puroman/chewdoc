@@ -9,6 +9,7 @@ from chewdoc.ast_utils import extract_docstrings, extract_type_info
 
 logger = logging.getLogger(__name__)
 
+
 def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
     """Process Python modules in package directory."""
     modules = []
@@ -16,10 +17,10 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
         # Skip __init__.py files
         if file_path.name == "__init__.py":
             continue
-        
+
         if _is_excluded(file_path, config.exclude_patterns):
             continue
-        
+
         try:
             module_data = _create_module_data(file_path, package_path, config)
             if module_data:
@@ -28,71 +29,86 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
             logger.warning(f"Skipping {file_path} due to syntax error: {e}")
         except Exception as e:
             logger.warning(f"Error processing {file_path}: {e}")
-    
+
     return modules
 
-def _create_module_data(file_path: Path, package_path: Path, config: ChewdocConfig) -> dict | None:
+
+def _create_module_data(
+    file_path: Path, package_path: Path, config: ChewdocConfig
+) -> dict | None:
     """Create module data with robust error handling."""
     try:
         with open(file_path, "r") as f:
             file_content = f.read()
-            
+
         # Validate syntax before parsing
         try:
             ast_tree = ast.parse(file_content)
         except SyntaxError as e:
             logger.warning(f"Syntax error in {file_path}: {e}")
             return None
-        
+
         # Validate module name
         module_name = _get_module_name(file_path, package_path)
         if not module_name:
             logger.warning(f"Could not determine module name for {file_path}")
             return None
-        
+
         return {
             "name": module_name,
             "path": str(file_path),
             "ast": ast_tree,
             "internal_deps": _find_internal_deps(ast_tree, package_path.name),
-            "imports": _find_imports(ast_tree, package_path.name)
+            "imports": _find_imports(ast_tree, package_path.name),
         }
     except Exception as e:
         logger.warning(f"Error processing module {file_path}: {e}")
         return None
 
+
 def _is_excluded(path: Path, exclude_patterns: List[str]) -> bool:
     return any(fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns)
+
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
     relative_path = file_path.relative_to(package_root)
     return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
 
+
 def _find_internal_deps(ast_tree: ast.Module, package_name: str) -> List[str]:
     """Find internal dependencies within the package."""
     internal_deps = []
-    
+
     class InternalDependencyVisitor(ast.NodeVisitor):
         def visit_Import(self, node):
             for alias in node.names:
                 if alias.name.startswith(package_name):
                     internal_deps.append(alias.name)
-        
+
         def visit_ImportFrom(self, node):
             if node.module and node.module.startswith(package_name):
                 internal_deps.append(node.module)
-    
+
     visitor = InternalDependencyVisitor()
     visitor.visit(ast_tree)
-    
+
     return list(set(internal_deps))
+
 
 def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
     """Analyze import statements with robust dependency classification."""
     imports = []
     stdlib_modules = {
-        "sys", "os", "re", "math", "datetime", "json", 
-        "pathlib", "typing", "collections", "itertools"
+        "sys",
+        "os",
+        "re",
+        "math",
+        "datetime",
+        "json",
+        "pathlib",
+        "typing",
+        "collections",
+        "itertools",
     }
 
     class ImportVisitor(ast.NodeVisitor):
@@ -108,23 +124,26 @@ def _find_imports(ast_tree: ast.AST, package_name: str) -> List[Dict]:
 
         def _add_import(self, full_path: str, root_module: Optional[str]):
             import_type = "external"
-            first_part = full_path.split('.')[0]
-            
+            first_part = full_path.split(".")[0]
+
             # Classify import type
             if first_part == package_name or full_path.startswith(f"{package_name}."):
                 import_type = "internal"
             elif first_part in stdlib_modules:
                 import_type = "stdlib"
-            
-            imports.append({
-                "full_path": full_path,
-                "name": full_path.split(".")[-1],
-                "type": import_type,
-                "source": first_part
-            })
+
+            imports.append(
+                {
+                    "full_path": full_path,
+                    "name": full_path.split(".")[-1],
+                    "type": import_type,
+                    "source": first_part,
+                }
+            )
 
     ImportVisitor().visit(ast_tree)
     return imports
+
 
 def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
     """Find and type-annotate module-level constants."""
@@ -132,10 +151,12 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
     for stmt in node.body:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
-                if isinstance(target, ast.Name) and (target.id.isupper() or target.id == "__version__"):
+                if isinstance(target, ast.Name) and (
+                    target.id.isupper() or target.id == "__version__"
+                ):
                     value = ast.unparse(stmt.value).strip()
                     const_type = "Any"
-                    if hasattr(stmt, 'type_comment') and stmt.type_comment:
+                    if hasattr(stmt, "type_comment") and stmt.type_comment:
                         const_type = stmt.type_comment
                     else:
                         # Infer type from value
@@ -143,17 +164,15 @@ def _find_constants(node: ast.AST, config: ChewdocConfig) -> Dict[str, Dict]:
                             const_type = "int"
                         elif value.startswith(("'", '"')):
                             const_type = "str"
-                    constants[target.id] = {
-                        "value": value,
-                        "type": const_type
-                    }
+                    constants[target.id] = {"value": value, "type": const_type}
         elif isinstance(stmt, ast.AnnAssign):
             if isinstance(stmt.target, ast.Name) and stmt.target.id.isupper():
                 constants[stmt.target.id] = {
                     "value": ast.unparse(stmt.value) if stmt.value else None,
-                    "type": ast.unparse(stmt.annotation)
+                    "type": ast.unparse(stmt.annotation),
                 }
     return constants
+
 
 class DocProcessor:
     def __init__(self, config: ChewdocConfig, examples: Optional[List] = None):
@@ -165,7 +184,7 @@ class DocProcessor:
         # Handle single string example
         if isinstance(raw_examples, str):
             return [{"code": raw_examples, "output": None}]
-        
+
         for ex in raw_examples:
             if isinstance(ex, str):
                 valid.append({"code": ex, "output": None})
@@ -181,19 +200,28 @@ class DocProcessor:
         try:
             with open(file_path, "r") as f:
                 ast_tree = ast.parse(f.read())
-                
+
             return {
                 "path": str(file_path),
                 "ast": ast_tree,
                 "docstrings": extract_docstrings(ast_tree),
-                "type_info": extract_type_info(ast_tree, self.config)
+                "type_info": extract_type_info(ast_tree, self.config),
             }
         except SyntaxError as e:
             logger.error(f"Syntax error in {file_path}: {str(e)}")
-            return {} 
+            return {}
+
 
 # Add stdlib modules list at the bottom of the file
 stdlib_modules = {
-    "sys", "os", "re", "math", "datetime", "json", 
-    "pathlib", "typing", "collections", "itertools"
-} 
+    "sys",
+    "os",
+    "re",
+    "math",
+    "datetime",
+    "json",
+    "pathlib",
+    "typing",
+    "collections",
+    "itertools",
+}

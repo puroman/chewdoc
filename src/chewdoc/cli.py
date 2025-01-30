@@ -21,11 +21,19 @@ def cli():
 
 @cli.command()
 @click.argument("source", type=str)
-@click.option("--output", "-o", required=True, type=click.Path(), help="Output directory")
+@click.option(
+    "--output", "-o", required=True, type=click.Path(), help="Output directory"
+)
 @click.option("--local/--pypi", default=None, help="Local package or PyPI package")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--version", help="Package version to analyze (for PyPI packages)")
-def chew(source: str, output: str, local: Optional[bool], verbose: bool, version: Optional[str] = None) -> None:
+def chew(
+    source: str,
+    output: str,
+    local: Optional[bool],
+    verbose: bool,
+    version: Optional[str] = None,
+) -> None:
     """Main entry point for package analysis"""
     start_time = datetime.now()
 
@@ -44,11 +52,11 @@ def chew(source: str, output: str, local: Optional[bool], verbose: bool, version
     try:
         config = load_config()
         result = analyze_package(
-            source=source, 
-            version=version, 
-            is_local=local, 
-            config=config, 
-            verbose=verbose
+            source=source,
+            version=version,
+            is_local=local,
+            config=config,
+            verbose=verbose,
         )
 
         # Normalize result to list of modules

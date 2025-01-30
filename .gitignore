@@ -1,17 +1,21 @@
 # Development
-.venv/
+.venv*
 .env
 *.swp
 *.swo
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.coverage
+.coverage*
 htmlcov/
-dist/
-build/
-*.egg-info/
+dist/*
+build/*
+*.egg-info*
 .ipynb_checkpoints/
+
+# Chewdoc
+docs/*
+!docs/example/
 
 # Editor
 .vscode/

@@ -25,7 +25,7 @@ class MystWriter:
         self.package_data = {}
         self.current_module = {}  # Initialize here instead of in generate()
         # Set default if not present in config
-        if not hasattr(self.config, 'max_example_lines'):
+        if not hasattr(self.config, "max_example_lines"):
             self.config.max_example_lines = 15
 
     def generate(
@@ -33,32 +33,33 @@ class MystWriter:
     ) -> None:
         """Generate documentation files"""
         self.package_data = package_data
-        self.current_module = {}  # Track current module context
-        index_content = self._format_package_index(package_data)
+        self.current_module = {}
 
-        # Ensure required fields with safe defaults
-        package_data.setdefault("name", "Unknown Package")
-        package_data.setdefault("package", package_data["name"])
-        package_data.setdefault("version", "0.0.0")
-        package_data.setdefault("author", "Unknown")
-        package_data.setdefault("license", "Not specified")
-        package_data.setdefault("python_requires", ">=3.6")
-
-        # Handle directory output path
-        output_dir = output_path if output_path.is_dir() else output_path.parent
-
-        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Processing package data: {package_data}")  # Add debug logging
 
         # Generate module files
         for mod in package_data["modules"]:
-            self.current_module = mod.copy()  # Set module context
+            self.current_module = mod.copy()
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
-            module_file = output_dir / f"{module['name']}.md"
-            content = self._format_module(module)
-            module_file.write_text(content)
+            logger.debug(f"Processing module: {module}")  # Add debug logging
 
-        # Generate index file
-        (output_dir / "index.md").write_text(index_content)
+            module_file = (
+                output_path
+                if output_path.is_dir()
+                else output_path.parent / f"{module['name']}.md"
+            )
+            try:
+                content = self._format_module(module)
+                logger.debug(
+                    f"Generated content length: {len(content)}"
+                )  # Add debug logging
+                module_file.write_text(content)
+            except Exception as e:
+                logger.error(f"Failed to format module {module['name']}: {e}")
+                # Write minimal content instead of failing silently
+                module_file.write_text(
+                    f"# Module: {module['name']}\n\n*Error: {str(e)}*\n"
+                )
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
@@ -92,7 +93,9 @@ class MystWriter:
                     try:
                         output.append(self._format_function(func_name, func_info))
                     except Exception as e:
-                        output.append(f"## `{func_name}`\n\n*Error formatting function: {str(e)[:100]}*")
+                        output.append(
+                            f"## `{func_name}`\n\n*Error formatting function: {str(e)[:100]}*"
+                        )
             return "\n".join(output)
         except Exception as e:
             logger.error(f"Failed to process module {module['name']}: {str(e)}")
@@ -116,11 +119,17 @@ class MystWriter:
 
         sections = []
         if stdlib_imports:
-            sections.append("### Standard Library\n" + "\n".join(sorted(stdlib_imports)))
+            sections.append(
+                "### Standard Library\n" + "\n".join(sorted(stdlib_imports))
+            )
         if int_imports:
-            sections.append("### Internal Dependencies\n" + "\n".join(sorted(int_imports)))
+            sections.append(
+                "### Internal Dependencies\n" + "\n".join(sorted(int_imports))
+            )
         if ext_imports:
-            sections.append("### External Dependencies\n" + "\n".join(sorted(ext_imports)))
+            sections.append(
+                "### External Dependencies\n" + "\n".join(sorted(ext_imports))
+            )
 
         return "\n\n".join(sections)
 
@@ -223,23 +232,23 @@ class MystWriter:
 
             if isinstance(args, ast.arguments):
                 return format_function_signature(args, returns, config)
-            
+
             if isinstance(args, dict):
                 args_list = args.get("args", [])
                 if not isinstance(args_list, list):
                     return f"()  # Invalid arguments: {str(args)[:50]}"
-                
+
                 return format_function_signature(
                     ast.arguments(
                         args=[ast.arg(arg=str(arg)) for arg in args_list],
                         defaults=args.get("defaults", []),
                     ),
                     returns,
-                    config
+                    config,
                 )
-            
+
             return "()  # Unable to parse arguments"
-        
+
         except Exception as e:
             error_msg = f"Error formatting signature: {str(e)[:100]}"
             logger.warning(error_msg)
@@ -305,12 +314,44 @@ class MystWriter:
     def _format_module(self, module: dict) -> str:
         """Format a module's documentation"""
         try:
+            logger.debug(
+                f"Module data for {module.get('name')}: {module}"
+            )  # Add debug logging
+
+            # Get module docstring from the correct key
+            module_doc = (
+                module.get("docstrings", {}).get("module:1")
+                or module.get("docstrings", {}).get("module")
+                or "No module docstring available"
+            )
+
             content = [
-                f"# {module['name']}\n",
+                f"# Module: {module['name']}\n",
                 f"```{{py:module}} {module['name']}",
-                (module.get("docstrings", {}).get("module") or "No module docstring available"),
-                "```\n\n",  # Ensure proper spacing after code block
+                module_doc,
+                "```\n\n",
             ]
+
+            # Add imports section
+            if module.get("imports"):
+                content.extend(
+                    [
+                        "## Dependencies\n",
+                        self._format_imports(
+                            module["imports"], self.package_data.get("package", "")
+                        ),
+                        "\n",
+                    ]
+                )
+
+            # Add module role and architecture layer
+            content.extend(
+                [
+                    self._format_role(module),
+                    self._format_architecture_layer(module),
+                    "\n",
+                ]
+            )
 
             # Add examples section if available
             if module.get("examples"):
@@ -329,7 +370,7 @@ class MystWriter:
                     for var_name, var_info in type_info["variables"].items():
                         # Handle different variable info formats
                         var_value = (
-                            var_info.get("value") 
+                            var_info.get("value")
                             if isinstance(var_info, dict)
                             else str(var_info)
                         )
@@ -361,7 +402,7 @@ class MystWriter:
                 for var_name, var_info in type_info["variables"].items():
                     # Handle different variable info formats
                     var_value = (
-                        var_info.get("value") 
+                        var_info.get("value")
                         if isinstance(var_info, dict)
                         else str(var_info)
                     )
@@ -370,9 +411,13 @@ class MystWriter:
 
             return "\n".join(content)
         except ValueError as e:
-            raise ValueError(f"Failed to format module {module.get('name', 'unknown')}: {str(e)}")
+            raise ValueError(
+                f"Failed to format module {module.get('name', 'unknown')}: {str(e)}"
+            )
         except Exception as e:
-            raise ValueError(f"Unexpected error formatting module {module.get('name', 'unknown')}: {str(e)}")
+            raise ValueError(
+                f"Unexpected error formatting module {module.get('name', 'unknown')}: {str(e)}"
+            )
 
     def _format_classes(self, classes: dict) -> str:
         output = []

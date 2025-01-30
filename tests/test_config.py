@@ -39,13 +39,15 @@ def test_config_validation():
 def test_config_from_toml(tmp_path):
     """Test loading config from TOML file"""
     config_file = tmp_path / "chewdoc.toml"
-    config_file.write_text("""
+    config_file.write_text(
+        """
     [tool.chewdoc]
     max_example_lines = 20
-    """)  # Removed invalid theme
-    
+    """
+    )  # Removed invalid theme
+
     with open(config_file, "rb") as f:
         config_data = tomllib.load(f)
-    
+
     config = ChewdocConfig(**config_data.get("tool", {}).get("chewdoc", {}))
     assert config.max_example_lines == 20

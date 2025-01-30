@@ -9,9 +9,14 @@ from .relationships import analyze_relationships
 from .ast_utils import extract_docstrings, extract_type_info
 from .config import ChewdocConfig
 from .utils import find_usage_examples, extract_constant_values, validate_ast
-from .package_discovery import find_python_packages, get_package_name, _is_namespace_package
+from .package_discovery import (
+    find_python_packages,
+    get_package_name,
+    _is_namespace_package,
+)
 
 logger = logging.getLogger(__name__)
+
 
 def analyze_package(
     source: str,
@@ -21,10 +26,14 @@ def analyze_package(
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Analyze Python package and extract documentation metadata."""
-    path = Path(source).resolve() if is_local else Path(tempfile.gettempdir()) / f"pypi_{source}"
+    path = (
+        Path(source).resolve()
+        if is_local
+        else Path(tempfile.gettempdir()) / f"pypi_{source}"
+    )
     if not is_local:
         path.mkdir(exist_ok=True)
-    
+
     if verbose and (start := datetime.now()):
         logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
 
@@ -74,7 +83,9 @@ def analyze_package(
             }
             package_info["modules"].append(module_info)
 
-        package_info["relationships"] = analyze_relationships(package_info["modules"], package_name)
+        package_info["relationships"] = analyze_relationships(
+            package_info["modules"], package_name
+        )
 
         if verbose:
             duration = datetime.now() - start
@@ -85,4 +96,4 @@ def analyze_package(
     except SyntaxError as e:
         raise ValueError(f"Syntax error in {path}: {e}") from e
     except Exception as e:
-        raise RuntimeError(f"Package analysis failed: {str(e)}") from e 
+        raise RuntimeError(f"Package analysis failed: {str(e)}") from e
