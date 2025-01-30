@@ -1,44 +1,26 @@
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from .config import ChewdocConfig
 import fnmatch
+import re
 
 
-def get_package_name(pkg_path: Path) -> str:
-    """
-    Extract package name from directory structure with advanced heuristics.
-
-    Args:
-        pkg_path (Path): Path to the package directory
-
-    Returns:
-        str: Extracted package name
-    """
-    parts = list(pkg_path.parts)
-
-    # Updated skip list to be less aggressive
-    skip_dirs = ["src", "lib", "site-packages", "dist-packages"]
-
-    for part in reversed(parts):
-        clean_part = part.split("-")[0].split("_")[0].split("v")[0]
-
-        # Skip common non-package directories
-        if clean_part in skip_dirs:
-            continue
-
-        if clean_part and clean_part.replace("_", "").isalnum():
-            # Prefer original part before any splitting
-            if "_" in part or "-" in part:
-                return part.split(".")[0]  # Handle versioned directories
-
-            # Check parent directories for compound names
-            parent_names = [p for p in parts if p not in skip_dirs]
-            if len(parent_names) > 1:
-                return ".".join(parent_names[-2:])
-
-            return clean_part
-
-    return parts[-1]
+def get_package_name(package_path: Path) -> Optional[str]:
+    """Robust package name detection with versioned path handling"""
+    try:
+        # Handle versioned directory patterns (my-pkg-1.2.3 -> my-pkg)
+        if re.match(r".*-\d+\.\d+.*", package_path.name):
+            base_name = re.sub(r"-\d+\.\d+.*", "", package_path.name)
+            return base_name.replace("_", "-")
+            
+        # Existing detection logic
+        for parent in package_path.parents:
+            if (parent / "__init__.py").exists():
+                return parent.name
+        return package_path.name
+    except Exception as e:
+        logger.warning(f"Package name detection failed: {str(e)}")
+        return None
 
 
 def _is_namespace_package(pkg_path: Path) -> bool:

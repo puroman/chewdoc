@@ -37,17 +37,15 @@ class MystWriter:
 
         logger.debug(f"Processing package data: {package_data}")  # Add debug logging
 
+        output_path.mkdir(parents=True, exist_ok=True)  # Ensure output directory exists
+
         # Generate module files
         for mod in package_data["modules"]:
             self.current_module = mod.copy()
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
             logger.debug(f"Processing module: {module}")  # Add debug logging
 
-            module_file = (
-                output_path
-                if output_path.is_dir()
-                else output_path.parent / f"{module['name']}.md"
-            )
+            module_file = output_path / f"{module['name']}.md"  # Always create file in directory
             try:
                 content = self._format_module(module)
                 logger.debug(
@@ -55,11 +53,8 @@ class MystWriter:
                 )  # Add debug logging
                 module_file.write_text(content)
             except Exception as e:
-                logger.error(f"Failed to format module {module['name']}: {e}")
-                # Write minimal content instead of failing silently
-                module_file.write_text(
-                    f"# Module: {module['name']}\n\n*Error: {str(e)}*\n"
-                )
+                logger.error(f"Failed to write {module_file}: {str(e)}")
+                raise
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
@@ -467,11 +462,27 @@ class MystWriter:
 
     def _format_function(self, func_name: str, func_info: dict) -> str:
         return (
-            f"### `{func_name}`\n\n"
-            f"**Signature:** `{func_info.get('signature', '')}`\n\n"
-            f"{func_info.get('docstring', '')}\n\n"
-            "#### Examples\n"
-            "\n".join(self._format_example(ex) for ex in func_info.get('examples', []))
+            "```{{eval-auto}}\n"
+            "# --8<-- [start:example]\n"
+            f"{func_info.get('signature', '')}\n"
+            "# --8<-- [end:example]\n"
+            "```"
+        )
+
+    def _handle_import_from(self, node: ast.ImportFrom) -> None:
+        if (
+            node.module 
+            and any(self._is_public_name(name.name) for name in node.names)
+        ):
+            self._add_import_relationship(
+                module=node.module,
+                level=node.level or 0
+            )
+
+    def _format_attribute(self, node: ast.Attribute) -> str:
+        return (
+            f"`{self._get_attr_source(node)}` "
+            f"(from {self._get_module_name(node.value)})"
         )
 
 

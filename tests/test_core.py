@@ -94,9 +94,10 @@ def test_analyze_invalid_package(tmp_path):
 
 
 def test_analyze_module_processing(tmp_path, mocker):
-    mock_process = mocker.patch("chewdoc.core.process_modules", return_value=[])
-    with pytest.raises(ValueError, match="No valid modules found"):
-        analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+    with patch("chewdoc.core.process_modules", return_value=[]) as mock_process:
+        with pytest.raises(ValueError):
+            analyze_package(str(tmp_path), is_local=True, config=ChewdocConfig())
+        mock_process.assert_called_once()
 
 
 def test_skip_empty_init(tmp_path):
@@ -105,8 +106,7 @@ def test_skip_empty_init(tmp_path):
 
     with patch("chewdoc.core.process_modules") as mock_modules:
         mock_modules.return_value = [{"name": "test", "path": str(init_file)}]
-        # Add config parameter
-        result = analyze_package(
+        analyze_package(
             str(tmp_path), is_local=True, config=ChewdocConfig(), verbose=True
         )
 

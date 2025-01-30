@@ -1,6 +1,6 @@
 VENV = .venv
 PYTHON = $(VENV)/bin/python
-UV = $(VENV)/bin/uv
+UV = uv
 DOCS_DIR = docs
 
 # Test configuration parameters with default values
@@ -48,12 +48,12 @@ help:
 
 venv:
 	@echo "Checking system requirements..."
-	@command -v uv >/dev/null 2>&1 || { echo >&2 "Error: uv not found. Please install uv first (https://github.com/astral-sh/uv)."; exit 1; }
+	@command -v $(UV) >/dev/null 2>&1 || { echo >&2 "Error: uv not found. Please install uv first (https://github.com/astral-sh/uv)."; exit 1; }
 	@echo "Creating virtual environment..."
 	rm -rf $(VENV)
-	uv venv $(VENV)
+	$(UV) venv $(VENV)
 	@echo "Installing base dependencies..."
-	uv pip install --python $(VENV)/bin/python -e .[dev]
+	$(UV) pip install --python $(VENV)/bin/python -e .[dev]
 
 # Installation targets
 install: venv install-prod install-dev
@@ -64,12 +64,12 @@ install-prod: venv
 
 install-dev: venv
 	@echo "Installing development dependencies..."
-	$(UV) pip install -e .[dev]
+	$(UV) pip install --python $(VENV)/bin/python -e .[dev]
 
 test: venv
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
-test-cov: venv
+covtest-cov: venv
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) \
 		--cov=src \
 		--cov-report=$(COVERAGE_FORMAT) \

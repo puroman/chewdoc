@@ -43,9 +43,12 @@ def analyze_package(
         if verbose:
             logger.info("🔍 Fetching package metadata...")
         package_info = get_package_metadata(source, version, is_local)
+        
+        # Add fallback package name derivation
+        package_name = package_info.get("package") or _derive_package_name(path)
+        package_info["package"] = package_name
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
-        package_name = package_info["package"]
 
         if verbose:
             logger.info(f"📦 Processing package: {package_name}")
@@ -96,4 +99,16 @@ def analyze_package(
     except SyntaxError as e:
         raise ValueError(f"Syntax error in {path}: {e}") from e
     except Exception as e:
+        logger.error(f"Package analysis failed: {str(e)}")
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
+
+def _derive_package_name(package_path: Path) -> str:
+    """Fallback package name derivation from path"""
+    path_parts = package_path.resolve().parts
+    for part in reversed(path_parts):
+        if part in ("src", "site-packages", "dist-packages"):
+            continue
+        if "-" in part:  # Handle versioned directories like my-pkg-1.2.3
+            return part.split("-")[0]
+        return part
+    return "unknown-package"

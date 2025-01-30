@@ -4,6 +4,7 @@ from typing import Any, List, Tuple, Union, Optional
 from pathlib import Path
 import logging
 import re
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -152,3 +153,12 @@ def safe_write(
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, mode) as f:
         f.write(content)
+
+
+def relative_path(from_path: Path, to_path: Path) -> Path:
+    return Path(
+        os.path.relpath(
+            str(to_path),
+            str(from_path.parent if from_path.is_file() else from_path)
+        )
+    ).with_suffix('')
