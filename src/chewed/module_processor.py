@@ -29,7 +29,7 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
 
             # Process the file/directory
             try:
-                module = process_module(p, package_path, config)
+                module = _process_single_file(p, package_path, config)
                 if module:
                     modules.append(module)
             except Exception as e:
@@ -265,9 +265,9 @@ stdlib_modules = {
 }
 
 
-def _process_single_file(py_file: Path, package_path: Path) -> dict:
+def _process_single_file(py_file: Path, package_path: Path, config: chewedConfig) -> dict:
     """Process a single Python file and return module data"""
-    module_data = _create_module_data(py_file, package_path, chewedConfig())
+    module_data = _create_module_data(py_file, package_path, config)
     return (
         {
             "name": module_data["name"],
