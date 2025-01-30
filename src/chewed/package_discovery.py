@@ -53,52 +53,49 @@ def _is_namespace_package(pkg_path: Path) -> bool:
 
 
 def find_python_packages(package_path: Path, config: chewedConfig) -> List[Dict[str, str]]:
-    """Find Python packages with improved versioned path handling"""
+    """Find Python packages with improved path handling"""
     packages = []
     
-    # Normalize path and handle versioned directories
-    package_path = package_path.resolve()
-    
-    # Check if the path itself is a package
-    if _is_namespace_package(package_path):
+    # Handle root package first
+    if _is_package(package_path, config):
         packages.append({
             "name": _derive_package_name(package_path),
-            "path": str(package_path)
+            "path": str(package_path.resolve())
         })
     
-    # Recursive package discovery
-    for path in package_path.rglob("__init__.py"):
+    # Recursive discovery with proper path resolution
+    for path in package_path.resolve().rglob("__init__.py"):
         pkg_dir = path.parent
         
-        # Skip excluded paths
-        if any(fnmatch.fnmatch(str(pkg_dir), pattern) for pattern in config.exclude_patterns):
+        # Skip excluded paths using resolved paths
+        resolved_pkg = pkg_dir.resolve()
+        if any(fnmatch.fnmatch(str(resolved_pkg), pattern) for pattern in config.exclude_patterns):
             continue
         
         # Handle versioned paths and nested packages
-        pkg_name = _derive_nested_package_name(pkg_dir, package_path)
+        pkg_name = _derive_nested_package_name(resolved_pkg, package_path.resolve())
         packages.append({
             "name": pkg_name,
-            "path": str(pkg_dir)
+            "path": str(resolved_pkg)
         })
     
     return packages
 
 
 def _derive_nested_package_name(pkg_dir: Path, root_path: Path) -> str:
-    """Derive package name for nested packages"""
+    """Derive package name for nested packages with proper path handling"""
     try:
-        # Compute relative path from root
-        relative_path = pkg_dir.relative_to(root_path)
+        # Compute relative path from root using resolved paths
+        relative_path = pkg_dir.relative_to(root_path.resolve())
         
-        # Convert path to package name, replacing separators with dots
-        pkg_name = str(relative_path).replace(os.path.sep, '.')
+        # Convert path to package name
+        pkg_name = ".".join(relative_path.parts)
         
         # Remove version suffixes and normalize
         pkg_name = re.sub(r'[-_]v?\d+.*', '', pkg_name)
         
         return pkg_name.lower()
     except ValueError:
-        # Fallback to simple package name derivation
         return _derive_package_name(pkg_dir)
 
 
