@@ -144,9 +144,11 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
     }
 
     writer.generate(package_info, tmp_path)
-    assert "Skipping invalid example" in caplog.text
-    assert "Expected dict or string" in caplog.text
-    assert "Expected dict with 'code' or 'content' key" in caplog.text
+    # Verify specific error messages
+    logs = caplog.text
+    assert "Skipping invalid example at index 2 - type: list" in logs
+    assert "Skipping invalid example at index 3 - type: int" in logs 
+    assert "Skipping invalid example at index 4 - type: dict" in logs
 
 
 def test_myst_writer_config_initialization():

@@ -7,22 +7,25 @@ import re
 
 def get_package_name(package_path: Path) -> Optional[str]:
     """Robust package name detection with versioned path handling"""
-    try:
-        # Handle version patterns like pkg-v1.2.3 or pkg_1.2.3
-        version_pattern = re.compile(r"[-_]v?\d+([.-]\d+)*($|[-_])")
-        match = version_pattern.search(package_path.name)
-        if match:
-            base_name = package_path.name[:match.start()]
-            return base_name.replace("_", "-").strip("-")
-            
-        # Existing detection logic
-        for parent in package_path.parents:
-            if (parent / "__init__.py").exists():
-                return parent.name
-        return package_path.name
-    except Exception as e:
-        logger.warning(f"Package name detection failed: {str(e)}")
-        return None
+    version_pattern = re.compile(r"[-_]v?(\d+([.-]\d+)*)([.-]|$)")
+    
+    # Check parent directory for version pattern
+    parent_name = package_path.parent.name
+    parent_match = version_pattern.search(parent_name)
+    if parent_match:
+        base_name = re.sub(r"[-_]\d+.*", "", parent_name)
+        return f"{base_name}.{package_path.name}"
+    
+    # Then check current directory name
+    self_match = version_pattern.search(package_path.name)
+    if self_match:
+        return package_path.name[:self_match.start()].replace("_", "-")
+    
+    # Existing fallback logic...
+    for parent in package_path.parents:
+        if (parent / "__init__.py").exists():
+            return parent.name
+    return package_path.name
 
 
 def _is_namespace_package(pkg_path: Path) -> bool:

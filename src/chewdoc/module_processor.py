@@ -14,25 +14,33 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     """Find and process modules in package with init.py handling"""
     modules = []
     
-    # Always include __init__.py if present
+    # Always include __init__.py even if empty
     init_py = package_path / "__init__.py"
     if init_py.exists():
         modules.append({
             "name": package_path.name,
             "path": str(init_py),
             "imports": [],
-            "internal_deps": []
+            "internal_deps": [],
+            "type_info": {"classes": {}, "functions": {}}
         })
 
-    # Existing module discovery logic
+    # Process other files with lenient handling
     for py_file in package_path.glob("**/*.py"):
         if _should_process(py_file, config):
             try:
-                modules.append(_process_single_file(py_file, package_path))
-            except Exception as e:
-                logger.warning(f"Skipping {py_file}: {str(e)}")
+                module_data = _process_single_file(py_file, package_path) or {
+                    "name": py_file.stem,
+                    "path": str(py_file),
+                    "imports": [],
+                    "internal_deps": []
+                }
+                modules.append(module_data)
+            except SyntaxError as e:
+                logger.warning(f"Skipping {py_file} due to syntax error")
+                continue
     
-    return [m for m in modules if m is not None]
+    return modules
 
 
 def _should_process(path: Path, config: ChewdocConfig) -> bool:

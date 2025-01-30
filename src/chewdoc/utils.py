@@ -69,13 +69,15 @@ def validate_ast(node: ast.AST) -> None:
             for target in child.targets:
                 if not isinstance(target, (ast.Name, ast.Attribute, ast.Subscript)):
                     line = getattr(target, 'lineno', 'unknown')
-                    raise ValueError(
-                        f"Invalid assignment target at line {line}: {ast.dump(target)}"
-                    )
+                    raise ValueError(f"Invalid assignment target at line {line}: {ast.dump(target)}")
+        
         if isinstance(child, ast.Dict):
             if len(child.keys) != len(child.values):
                 line = getattr(child, 'lineno', 'unknown')
-                raise ValueError(f"Invalid Dict at line {line} - {len(child.keys)} keys vs {len(child.values)} values")
+                raise ValueError(
+                    f"Invalid Dict at line {line} - key/value count mismatch "
+                    f"({len(child.keys)} keys vs {len(child.values)} values)"
+                )
         # Add other validation checks here
 
 

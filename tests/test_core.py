@@ -213,24 +213,22 @@ def test_analyze_package_error_handling(tmp_path):
     test_path = tmp_path / "valid_path"
     test_path.mkdir()
     (test_path / "__init__.py").touch()
-
-    with patch("chewdoc.core.process_modules") as mock_process:
-        mock_process.side_effect = RuntimeError("Simulated failure")
-        with pytest.raises(RuntimeError, match="Simulated failure"):
-            analyze_package(
-                str(test_path), is_local=True, config=ChewdocConfig(), verbose=False
-            )
+    
+    with patch("chewdoc.core.process_modules", return_value=[]):
+        with pytest.raises(RuntimeError) as exc_info:
+            analyze_package(str(test_path), is_local=True, config=ChewdocConfig())
+        assert "No valid modules found" in str(exc_info.value)
 
 
 def test_find_python_packages_edge_cases(tmp_path):
     """Test package finding with versioned directories"""
     versioned_path = tmp_path / "pkg-v1.2.3" / "pkg" / "sub"
     versioned_path.mkdir(parents=True)
-    (versioned_path / "__init__.py").write_text("")
+    (versioned_path / "__init__.py").touch()
     
     config = ChewdocConfig()
     packages = find_python_packages(tmp_path, config)
-    assert any(p["name"] == "pkg.sub" for p in packages), "Versioned parent not handled"
+    assert any(p["name"] == "pkg.sub" for p in packages), f"Found packages: {packages}"
 
 
 def test_example_processing():

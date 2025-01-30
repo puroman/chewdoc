@@ -48,15 +48,18 @@ def test_extract_constant_values():
 
 
 def test_validate_ast_invalid_nodes():
-    """Test AST validation with problematic nodes"""
-    # Create invalid AST node using actual AST classes
+    """Test AST validation with key/value mismatch"""
     bad_node = ast.Module(body=[
-        ast.Expr(value=ast.Dict(keys=[ast.Constant(value=1)], values=[ast.Constant(value=2)]))  # Invalid dict with key-value mismatch
+        ast.Expr(value=ast.Dict(
+            keys=[ast.Constant(value=1), ast.Constant(value=2)],
+            values=[ast.Constant(value=3)]  # 2 keys, 1 value
+        ))
     ])
     
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError) as exc_info:
         validate_ast(bad_node)
-    assert "invalid node types" in str(excinfo.value).lower()
+    assert "key/value count mismatch" in str(exc_info.value)
+    assert "2 keys vs 1 values" in str(exc_info.value)
 
 
 def test_validate_ast_empty_with_docstring():

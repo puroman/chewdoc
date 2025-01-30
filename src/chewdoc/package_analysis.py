@@ -32,9 +32,9 @@ def analyze_package(
     config = config or ChewdocConfig()
     try:
         # Convert source to Path object early
-        path = Path(str(source)).resolve()  # Ensure string conversion
-        if not is_local:
-            path.mkdir(exist_ok=True)
+        path = Path(str(source)).resolve()
+        if not path.exists():
+            raise ValueError(f"Source path does not exist: {path}")
 
         if verbose and (start := datetime.now()):
             logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])

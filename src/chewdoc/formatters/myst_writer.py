@@ -80,6 +80,12 @@ class MystWriter:
                 "```{py:module} " + module['name']
             ]
             
+            # Add class section
+            if classes := module.get("type_info", {}).get("classes"):
+                output.append("\n## Classes\n")
+                for cls_name, cls_info in classes.items():
+                    output.append(self._format_class(cls_name, cls_info))
+            
             # Handle different docstring formats
             docstrings = module.get("docstrings", {})
             if "module" in docstrings:  # Direct module docstring
@@ -264,16 +270,18 @@ class MystWriter:
             return f"()  # {error_msg}"
 
     def _format_usage_examples(self, examples: list) -> str:
-        """Format usage examples with validation"""
+        """Format usage examples with validation and proper indexing"""
         output = []
-        for idx, ex in enumerate(examples):
-            if isinstance(ex, dict) and "code" in ex:
-                output.append(f"```python\n{ex['code']}\n```")
-            else:
-                logger.warning(f"Skipping invalid example at index {idx} - type: {type(ex)}")
-                output.append("<!-- Skipped invalid example -->")
-        
-        return "\n\n".join(output) if output else "No valid examples found"
+        for i, ex in enumerate(examples):
+            if not isinstance(ex, (str, dict)):
+                logger.warning(f"Skipping invalid example at index {i} - type: {type(ex).__name__}")
+            elif isinstance(ex, (str, dict)) and "code" in str(ex):
+                try:
+                    code = ex["code"] if isinstance(ex, dict) else ex
+                    output.append(f"### Example {i+1}\n```python\n{code}\n```")
+                except KeyError:
+                    logger.warning(f"Skipping invalid example at index {i} - type: {type(ex).__name__}")
+        return "\n\n".join(output) if output else ""
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
