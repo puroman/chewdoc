@@ -7,78 +7,78 @@ from typing import Optional
 from chewed.core import analyze_package
 from chewed.doc_generation import generate_docs
 from chewed.metadata import get_pypi_metadata
-from chewed.config import chewedConfig
+from chewed.config import chewedConfig, load_config
 from chewed._version import __version__
 
 logger = logging.getLogger(__name__)
 
+@click.group()
+@click.version_option(version=__version__)
+def cli():
+    """Documentation generator for Python packages."""
+    pass
 
-@click.command()
-@click.argument("source", required=True, type=click.Path(exists=False))
+@cli.command(name="chew")
+@click.argument("source")
 @click.option(
-    "--output", "-o", default="docs", help="Output directory for documentation"
+    "--output", "-o", 
+    type=click.Path(), 
+    default="docs",
+    help="Output directory for documentation"
 )
 @click.option(
-    "--local/--pypi", default=True, help="Source is local package or PyPI package"
+    "--local/--pypi", 
+    default=True, 
+    help="Process local package or download from PyPI"
 )
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-@click.version_option(__version__, prog_name="chewed")
-def cli(source: str, output: str, local: bool, verbose: bool):
-    """Generate LLM-optimized documentation for Python packages."""
+@click.option(
+    "--verbose", "-v", 
+    is_flag=True, 
+    help="Enable verbose output"
+)
+def chew_command(source: str, output: str, local: bool, verbose: bool):
+    """Generate documentation for a Python package."""
     try:
-        # Configure logging
+        # Configure logging - moved before any operations
         logging.basicConfig(
             level=logging.INFO if verbose else logging.WARNING,
-            format="%(levelname)s: %(message)s",
+            format='%(message)s',
+            force=True  # Force reconfiguration of the root logger
         )
+        logger.setLevel(logging.INFO if verbose else logging.WARNING)
+            
+        # Validate source exists if local
+        if local and not Path(source).exists():
+            raise click.BadParameter(f"Source path does not exist: {source}")
 
-        # Resolve output path
-        output_path = Path(output).resolve()
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Handle special case for Makefile documentation generation
-        if source == "./src":
-            source = os.path.abspath(source)
-
-        # Validate source path for local packages
-        if local:
-            source_path = Path(source)
-            if not source_path.exists():
-                raise click.BadParameter(f"Source path does not exist: {source}")
-
-        # Handle PyPI package download if needed
-        if not local:
-            logger.info(f"🌐 Fetching PyPI package metadata for {source}")
-            source = get_pypi_metadata(source)
-
-        # Normalize source path
-        source_path = Path(source).resolve()
-
-        # Analyze package
-        config = chewedConfig()
+        # Load config
+        config = load_config()
+        
+        # Process package
+        logger.info(f"📦 Processing {'local' if local else 'PyPI'} package: {source}")
         package_info = analyze_package(
-            source=str(source_path), is_local=local, config=config, verbose=verbose
+            source=source,
+            is_local=local,
+            config=config,
+            verbose=verbose
         )
-
+        
         # Generate documentation
-        generate_docs(package_info, output_path, verbose)
-
-        # Log statistics
+        output_path = Path(output)
+        output_path.mkdir(parents=True, exist_ok=True)  # Ensure output directory exists
+        logger.info(f"📝 Generating documentation in {output_path}")
+        generate_docs(package_info, output_path, verbose=verbose)
+        
         if verbose:
-            examples_count = sum(
-                len(mod.get("examples", [])) for mod in package_info.get("modules", [])
-            )
-            logger.info(f"📋 Found {examples_count} usage examples")
-
+            logger.info(f"✅ Documentation generated successfully")
+            
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        click.echo(f"Error: {str(e)}", err=True)
-        raise click.Abort()
-
+        logger.error(str(e))
+        raise click.ClickException(str(e))
 
 def main():
+    """Entry point for the CLI."""
     cli(prog_name="chew")
-
 
 if __name__ == "__main__":
     main()

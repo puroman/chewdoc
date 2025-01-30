@@ -9,7 +9,8 @@ from chewed.config import chewedConfig, load_config
 import logging
 import ast
 import sys
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import fnmatch
 
 logger = logging.getLogger(__name__)
 
@@ -48,65 +49,86 @@ def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
     return imports
 
 
+def process_package_modules(pkg_path: Path, config: chewedConfig) -> List[Dict[str, Any]]:
+    """Process all Python modules in a package"""
+    modules = []
+    processed_files = set()  # Track processed files
+    
+    for py_file in pkg_path.glob("*.py"):
+        # Skip already processed files
+        if str(py_file.resolve()) in processed_files:
+            continue
+            
+        # Skip excluded files
+        if any(fnmatch.fnmatch(str(py_file), pattern) for pattern in config.exclude_patterns):
+            continue
+            
+        # Skip empty __init__.py files
+        if py_file.name == "__init__.py" and py_file.stat().st_size == 0:
+            continue
+            
+        try:
+            module_info = process_modules([str(py_file)], config)
+            if module_info:
+                modules.extend(module_info)
+                processed_files.add(str(py_file.resolve()))
+        except SyntaxError:
+            logger.warning(f"Syntax error in {py_file}")
+            continue
+        except Exception as e:
+            logger.warning(f"Failed to process {py_file}: {str(e)}")
+            continue
+            
+    return modules
+
+
 def analyze_package(
-    source: str, is_local: bool, config: chewedConfig, verbose: bool = False
-) -> dict:
-    """Main analysis entry point with proper error handling"""
+    source: str, 
+    is_local: bool = True,
+    config: Optional[chewedConfig] = None,
+    verbose: bool = False
+) -> Dict[str, Any]:
+    """Analyze a Python package with improved error handling"""
+    config = config or chewedConfig()
+    source_path = Path(source).resolve()
+
+    if not source_path.exists():
+        raise ValueError(f"Source path does not exist: {source}")
+
     try:
-        package_path = Path(source)
-
-        # Validate source path exists
-        if not package_path.exists():
-            raise ValueError(f"Source path does not exist: {source}")
-
-        packages = find_python_packages(package_path, config)
+        packages = find_python_packages(source_path, config)
         if not packages:
-            # Use namespace package fallback if configured
-            if config.namespace_fallback:
-                packages = [{"name": package_path.name, "path": str(package_path)}]
-            else:
-                raise RuntimeError(f"No valid Python packages found in {source}")
+            raise ValueError("No valid Python packages found")
 
-        # Process modules for each package
-        all_modules = []
+        # Process modules with empty package check
+        modules = []
+        processed_paths = set()  # Track processed package paths
+        
         for pkg in packages:
-            try:
-                modules = process_modules(Path(pkg["path"]), config)
+            pkg_path = Path(pkg["path"])
+            if str(pkg_path) in processed_paths:
+                continue
+                
+            if not any(pkg_path.glob("*.py")):
+                continue
+                
+            pkg_modules = process_package_modules(pkg_path, config)
+            if pkg_modules:
+                modules.extend(pkg_modules)
+                processed_paths.add(str(pkg_path))
 
-                # If no modules found, create a minimal module for namespace packages
-                if not modules and config.namespace_fallback:
-                    modules = [
-                        {
-                            "name": pkg["name"],
-                            "path": pkg["path"],
-                            "imports": [],
-                            "internal_deps": [],
-                        }
-                    ]
-
-                if not modules:
-                    raise RuntimeError(
-                        f"Package {pkg['name']} contains no valid modules"
-                    )
-
-                all_modules.extend(modules)
-            except Exception as module_error:
-                if not config.namespace_fallback:
-                    raise
+        if not modules:
+            raise RuntimeError("No valid modules found")
 
         return {
-            "package": get_package_name(package_path),
-            "modules": all_modules,
-            "metadata": get_package_metadata(
-                source=str(package_path.resolve()),
-                is_local=is_local,
-                version=getattr(config, "version", "0.0.0"),
-            ),
-            "config": config.model_dump(),
+            "package": get_package_name(source_path),
+            "modules": modules,
+            "config": config
         }
-    except ValueError as ve:
-        # Specific handling for path not existing
-        raise ValueError(str(ve))
+
+    except ValueError as e:
+        logger.error(str(e))
+        raise
     except Exception as e:
-        logger.error(f"Package analysis failed: {str(e)}")
+        logger.error(f"Package analysis failed: {str(e)}", exc_info=verbose)
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e

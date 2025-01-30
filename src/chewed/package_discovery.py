@@ -93,11 +93,11 @@ def _derive_nested_package_name(pkg_dir: Path, root_path: Path) -> str:
         relative_path = pkg_dir.relative_to(root_path.resolve())
 
         # Convert path to package name
-        pkg_name = ".".join(relative_path.parts)
+        pkg_name = ".".join(part.replace("-", "_") for part in relative_path.parts)
 
-        # Remove version suffixes and normalize
-        pkg_name = re.sub(r"[-_]v?\d+.*", "", pkg_name)
-
+        # Remove version suffixes but preserve dots
+        pkg_name = re.sub(r"[-_]v?\d+[\d_.]*(?=\.|$)", "", pkg_name)
+        
         return pkg_name.lower()
     except ValueError:
         return _derive_package_name(pkg_dir)
@@ -149,6 +149,10 @@ def _is_excluded(path: Path, config: chewedConfig) -> bool:
 
 def _is_package(path: Path, config: chewedConfig) -> bool:
     """Determine if a path is a valid Python package"""
+    # Check for basic package structure
+    if not any(path.glob("*.py")) and not config.allow_namespace_packages:
+        return False
+        
     # Check for __init__.py if namespace packages are not allowed
     if not config.allow_namespace_packages:
         return (path / "__init__.py").exists()
