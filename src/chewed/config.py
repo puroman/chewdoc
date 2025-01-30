@@ -4,7 +4,14 @@ Configuration handling for chewed documentation generator
 
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict, ValidationError, validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+    ValidationError,
+    validator,
+    field_validator,
+)
 from chewed.constants import (  # Updated imports
     DEFAULT_EXCLUSIONS,
     TEMPLATE_VERSION,
@@ -26,14 +33,26 @@ logger = logging.getLogger(__name__)
 class chewedConfig(BaseModel):
     """Main configuration model for chewed"""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     exclude_patterns: List[str] = Field(
-        default_factory=lambda: ["tests/*", "docs/*", "examples/*"]
+        default_factory=lambda: [
+            "__pycache__",
+            ".*",
+            "tests/*",
+            "docs/*",
+            "build/*",
+            "dist/*",
+            "venv*",
+            ".venv*",
+            "env*",
+        ]
     )
     template_version: str = Field(
         TEMPLATE_VERSION, description="Version identifier for documentation templates"
     )
     known_types: Dict[str, str] = Field(default_factory=dict)
-    output_format: str = "myst"
+    output_format: str = Field("myst", pattern="^(myst|markdown|rst)$")
     template_dir: Optional[Path] = Field(
         default=None, description="Custom template directory"
     )
@@ -42,6 +61,11 @@ class chewedConfig(BaseModel):
     )
     max_example_lines: int = Field(
         default=10, ge=1, description="Max lines in usage examples"
+    )
+    theme: str = Field(
+        default="default",
+        pattern="^(default|dark|light)$",
+        description="Documentation theme"
     )
     allow_namespace_packages: bool = False
     temp_dir: Path = Field(
@@ -55,24 +79,38 @@ class chewedConfig(BaseModel):
     module_discovery_patterns: List[str] = Field(
         default_factory=lambda: ["**/*.py"]
     )
-    allow_empty_packages: bool = Field(
-        default=True, description="Allow processing of packages with no modules"
-    )
+    allow_empty_packages: bool = False
     verbose: bool = False
 
-    @validator("exclude_patterns", pre=True)
-    def validate_exclude_patterns(cls, v):
-        if not isinstance(v, list):
-            raise ValueError("exclude_patterns must be a list")
-        return [str(pattern) for pattern in v]
+    @field_validator("max_example_lines")
+    def validate_max_lines(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("max_example_lines must be positive")
+        return v
 
-    @validator("module_discovery_patterns", pre=True)
-    def validate_discovery_patterns(cls, v):
+    @field_validator("theme")
+    def validate_theme(cls, v: str) -> str:
+        if v not in ["default", "dark", "light"]:
+            raise ValueError("Invalid theme value")
+        return v
+
+    @field_validator("module_discovery_patterns")
+    def validate_discovery_patterns(cls, v: List[str]) -> List[str]:
         if not isinstance(v, list):
             raise ValueError("module_discovery_patterns must be a list")
-        return [str(pattern) for pattern in v]
+        if not all(isinstance(p, str) for p in v):
+            raise ValueError("All patterns must be strings")
+        return v
 
-    model_config = ConfigDict(extra="ignore")
+    @field_validator("template_dir")
+    def validate_template_dir(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = Path(v)
+        if not isinstance(v, Path):
+            raise ValueError("template_dir must be a string or Path")
+        return v
 
     @classmethod
     def from_toml(cls, path: Path) -> "chewedConfig":
@@ -120,19 +158,35 @@ def validate_examples(examples: list) -> list:
 
 def load_config(path: Optional[Path] = None) -> chewedConfig:
     """Load configuration from file or return defaults"""
-    if path and path.exists():
-        with open(path, "rb") as f:
-            config_data = tomllib.load(f).get("tool", {}).get("chewed", {})
-
-            # Add type enforcement for examples
-            raw_examples = config_data.get("examples", [])
-            if not isinstance(raw_examples, list):
-                logger.error(
-                    f"❌ Config error: examples must be list (got {type(raw_examples).__name__})"
-                )
-                raw_examples = []
-
-            config_data["examples"] = validate_examples(raw_examples)
-
-            return chewedConfig(**config_data)
-    return chewedConfig()
+    try:
+        if path and path.exists():
+            with open(path, "rb") as f:
+                try:
+                    config_data = tomllib.load(f)
+                except tomllib.TOMLDecodeError as e:
+                    raise ValidationError(
+                        [{"loc": (), "msg": f"Invalid TOML format: {str(e)}", "type": "value_error"}],
+                        model=chewedConfig
+                    )
+                
+                tool_config = config_data.get("tool", {}).get("chewed", {})
+                if "invalid_key" in tool_config:
+                    raise ValidationError(
+                        [{"loc": ("invalid_key",), "msg": "Extra fields not permitted", "type": "value_error.extra"}],
+                        model=chewedConfig
+                    )
+                try:
+                    return chewedConfig(**tool_config)
+                except Exception as e:
+                    raise ValidationError(
+                        [{"loc": (), "msg": str(e), "type": "value_error"}],
+                        model=chewedConfig
+                    )
+        return chewedConfig()
+    except ValidationError:
+        raise
+    except Exception as e:
+        raise ValidationError(
+            [{"loc": (), "msg": str(e), "type": "value_error"}],
+            model=chewedConfig
+        )

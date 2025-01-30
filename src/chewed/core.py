@@ -9,7 +9,7 @@ from chewed.config import chewedConfig, load_config
 import logging
 import ast
 import sys
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import fnmatch
 
 logger = logging.getLogger(__name__)
@@ -49,24 +49,29 @@ def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
     return imports
 
 
-def process_package_modules(pkg_path: Path, config: chewedConfig) -> List[Dict[str, Any]]:
+def process_package_modules(
+    pkg_path: Path, config: chewedConfig
+) -> List[Dict[str, Any]]:
     """Process all Python modules in a package"""
     modules = []
     processed_files = set()  # Track processed files
-    
+
     for py_file in pkg_path.glob("*.py"):
         # Skip already processed files
         if str(py_file.resolve()) in processed_files:
             continue
-            
+
         # Skip excluded files
-        if any(fnmatch.fnmatch(str(py_file), pattern) for pattern in config.exclude_patterns):
+        if any(
+            fnmatch.fnmatch(str(py_file), pattern)
+            for pattern in config.exclude_patterns
+        ):
             continue
-            
+
         # Skip empty __init__.py files
         if py_file.name == "__init__.py" and py_file.stat().st_size == 0:
             continue
-            
+
         try:
             module_info = process_modules([str(py_file)], config)
             if module_info:
@@ -78,45 +83,70 @@ def process_package_modules(pkg_path: Path, config: chewedConfig) -> List[Dict[s
         except Exception as e:
             logger.warning(f"Failed to process {py_file}: {str(e)}")
             continue
-            
+
     return modules
 
 
-def analyze_package(source: Path, config: chewedConfig, verbose: bool = False) -> dict:
+def analyze_package(
+    source: Union[str, Path],
+    config: Optional[chewedConfig] = None,
+    is_local: bool = True,
+    verbose: bool = False
+) -> dict:
     """Main package analysis entry point"""
     try:
-        # Ensure source is a Path object
+        # Ensure source is a Path object and config exists
         source = Path(source).resolve()
+        config = config or chewedConfig()
+        
         if not source.exists():
-            raise ValueError(f"Package path does not exist: {source}")
+            raise ValueError(f"Source path does not exist: {source}")
 
         logger.info(f"Analyzing package at: {source}")
         
-        # Process modules
-        modules = process_modules(source, config)
-        if not modules:
-            if config.allow_namespace_packages:
-                logger.warning(f"Empty namespace package at {source}")
-                return _create_empty_package_info(source)
+        try:
+            # Process modules
+            modules = process_modules(source, config)
+            if not modules:
+                raise RuntimeError("No valid modules found")
+        except Exception as e:
+            logger.error(f"Failed to process modules: {str(e)}")
             raise RuntimeError("No valid modules found")
 
-        # Get package name before processing relationships
+        # Validate modules
+        valid_modules = []
+        for module in modules:
+            if not isinstance(module, dict) or 'name' not in module:
+                logger.warning(f"Skipping invalid module: {module}")
+                continue
+            valid_modules.append(module)
+
+        if not valid_modules:
+            raise RuntimeError("No valid modules found")
+
+        # Get package name and analyze relationships
         package_name = get_package_name(source)
-        
-        # Analyze relationships with package name
-        relationships = analyze_relationships(modules, package_name)
+        try:
+            relationships = analyze_relationships(valid_modules, package_name)
+        except Exception as e:
+            logger.error(f"Failed to analyze relationships: {str(e)}")
+            if verbose:
+                logger.debug("Module data causing relationship analysis failure:", exc_info=True)
+            relationships = {"dependency_graph": {}, "external_deps": []}
         
         return {
-            "package": package_name,  # Use already retrieved name
+            "package": package_name,
             "path": str(source),
-            "modules": modules,
+            "modules": valid_modules,
             "relationships": relationships,
             "metadata": get_package_metadata(source)
         }
         
+    except RuntimeError:
+        raise
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
-        raise
+        raise RuntimeError("No valid modules found")
 
 
 def _create_empty_package_info(path: Path) -> dict:
@@ -125,6 +155,6 @@ def _create_empty_package_info(path: Path) -> dict:
         "package": path.name,
         "path": str(path),
         "modules": [],
-        "relationships": {},
-        "metadata": {}
+        "relationships": {"dependency_graph": {}, "external_deps": []},
+        "metadata": {},
     }

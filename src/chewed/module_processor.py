@@ -15,6 +15,7 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
     """Find and process Python modules in a package with better filtering"""
     modules = []
     package_path = Path(package_path)
+    has_syntax_error = False
 
     try:
         # Walk through the directory tree
@@ -39,29 +40,29 @@ def process_modules(package_path: Path, config: chewedConfig) -> list:
 
                 try:
                     # Process the file
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                    ast.parse(content)  # Check for syntax errors
+                    
                     module = _process_single_file(file_path, package_path, config)
                     if module:
                         modules.append(module)
+                except SyntaxError:
+                    has_syntax_error = True
+                    logger.error(f"Syntax error in {file_path}")
                 except Exception as e:
                     logger.warning(f"Failed to process {file_path}: {str(e)}")
-                    continue
 
-        # Handle namespace packages if allowed and no modules found
-        if not modules and config.allow_namespace_packages:
-            logger.info(f"Processing namespace package at {package_path}")
-            modules.append({
-                "name": package_path.name,
-                "path": str(package_path),
-                "imports": [],
-                "internal_deps": [],
-                "type_info": {"classes": {}, "functions": {}}
-            })
+        if not modules or has_syntax_error:
+            raise RuntimeError("No valid modules found")
+            
+        return modules
 
-    except Exception as e:
-        logger.error(f"Error processing modules in {package_path}: {str(e)}")
+    except RuntimeError:
         raise
-
-    return modules
+    except Exception as e:
+        logger.error(f"Failed to process package: {str(e)}")
+        raise RuntimeError("No valid modules found")
 
 
 def _should_process(path: Path, config: chewedConfig) -> bool:

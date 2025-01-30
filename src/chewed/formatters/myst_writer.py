@@ -29,15 +29,17 @@ class MystWriter:
         # Replace dots and slashes with underscores
         sanitized = name.replace(".", "_").replace("/", "_")
         # Remove any other invalid characters
-        return re.sub(r'[^\w\-_.]', '_', sanitized)
+        return re.sub(r"[^\w\-_.]", "_", sanitized)
 
     def _process_examples(self, examples: List[Dict]) -> List[Dict]:
         """Process and validate examples"""
         valid_examples = []
         for example in examples:
             if isinstance(example, dict):
-                if 'code' not in example and 'content' not in example:
-                    self.logger.warning("Skipping example: Missing 'code'/'content' field")
+                if "code" not in example and "content" not in example:
+                    self.logger.warning(
+                        "Skipping example: Missing 'code'/'content' field"
+                    )
                     continue
                 valid_examples.append(example)
             elif isinstance(example, str):
@@ -91,14 +93,16 @@ class MystWriter:
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links and toctree"""
-        package_name = package_data.get('name', package_data.get('package', 'Unknown Package'))
-        
+        package_name = package_data.get(
+            "name", package_data.get("package", "Unknown Package")
+        )
+
         content = [
             f"# {package_name} Documentation\n",
             "```{toctree}",
             ":maxdepth: 2",
             ":caption: Contents:",
-            ""  # Empty line after caption
+            "",  # Empty line after caption
         ]
 
         # Add module entries to toctree
@@ -108,12 +112,14 @@ class MystWriter:
                 sanitized_name = self._sanitize_filename(module_name)
                 content.append(sanitized_name)
 
-        content.extend([
-            "```\n",
-            "## Package Overview",
-            self._format_metadata(package_data),
-            "\n## Modules\n"
-        ])
+        content.extend(
+            [
+                "```\n",
+                "## Package Overview",
+                self._format_metadata(package_data),
+                "\n## Modules\n",
+            ]
+        )
 
         # Add module links
         for mod in package_data.get("modules", []):
@@ -130,17 +136,20 @@ class MystWriter:
             module_name = module.get("name", "unknown")
             content = [
                 f"# Module: {module_name}\n",
-                module.get("docstring", module.get("docstrings", {}).get("module", "No module documentation available")),
-                "\n"
+                module.get(
+                    "docstring",
+                    module.get("docstrings", {}).get(
+                        "module", "No module documentation available"
+                    ),
+                ),
+                "\n",
             ]
 
             # Add examples if present
             if examples := module.get("examples", []):
-                content.extend([
-                    "## Examples\n",
-                    self._format_usage_examples(examples),
-                    "\n"
-                ])
+                content.extend(
+                    ["## Examples\n", self._format_usage_examples(examples), "\n"]
+                )
 
             # Add type information only if there's actual content
             if type_info := module.get("type_info", {}):
@@ -152,19 +161,26 @@ class MystWriter:
                 if variables := type_info.get("variables"):
                     # Filter out empty or None values
                     valid_vars = {
-                        name: value for name, value in variables.items() 
-                        if value is not None and (
-                            not isinstance(value, dict) or 
-                            value.get("value") is not None
+                        name: value
+                        for name, value in variables.items()
+                        if value is not None
+                        and (
+                            not isinstance(value, dict)
+                            or value.get("value") is not None
                         )
                     }
                     if valid_vars:
                         has_variables = True
-                        sections.extend([
-                            "### Variables\n",
-                            *[f"- `{name}`: {self._format_variable_value(value)}" for name, value in valid_vars.items()],
-                            "\n"
-                        ])
+                        sections.extend(
+                            [
+                                "### Variables\n",
+                                *[
+                                    f"- `{name}`: {self._format_variable_value(value)}"
+                                    for name, value in valid_vars.items()
+                                ],
+                                "\n",
+                            ]
+                        )
 
                 # Add classes
                 if classes := type_info.get("classes"):
@@ -191,7 +207,9 @@ class MystWriter:
 
             return "\n".join(content)
         except Exception as e:
-            self.logger.error(f"Error formatting module {module.get('name', 'unknown')}: {str(e)}")
+            self.logger.error(
+                f"Error formatting module {module.get('name', 'unknown')}: {str(e)}"
+            )
             return f"# Module: {module.get('name', 'unknown')}\n\nError generating documentation: {str(e)}"
 
     def _format_variable_value(self, value: Any) -> str:
@@ -276,18 +294,20 @@ class MystWriter:
     def _format_metadata(self, package_data: Dict[str, Any]) -> str:
         """Format package metadata section"""
         metadata = {
-            "Name": package_data.get('name', package_data.get('package', 'Unknown')),
-            "Version": package_data.get('version', '0.0.0'),
-            "Author": package_data.get('author', 'Unknown Author'),
-            "License": package_data.get('license', 'Not specified'),
-            "Interface": package_data.get('interface', 'Not specified')
+            "Name": package_data.get("name", package_data.get("package", "Unknown")),
+            "Version": package_data.get("version", "0.0.0"),
+            "Author": package_data.get("author", "Unknown Author"),
+            "License": package_data.get("license", "Not specified"),
+            "Interface": package_data.get("interface", "Not specified"),
         }
-        
-        return "\n".join([
-            "\n### Package Overview",
-            *[f"**{key}**: {value}" for key, value in metadata.items()],
-            "\n"
-        ])
+
+        return "\n".join(
+            [
+                "\n### Package Overview",
+                *[f"**{key}**: {value}" for key, value in metadata.items()],
+                "\n",
+            ]
+        )
 
     def _format_role(self, module: dict) -> str:
         """Format module role description"""

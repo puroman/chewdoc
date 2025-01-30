@@ -55,7 +55,9 @@ def _is_namespace_package(pkg_path: Path) -> bool:
     return False
 
 
-def find_python_packages(root_path: Union[str, Path], config: chewedConfig) -> List[Dict]:
+def find_python_packages(
+    root_path: Union[str, Path], config: chewedConfig
+) -> List[Dict]:
     """Find Python packages in the given directory."""
     root_path = Path(root_path).resolve()
     if not root_path.exists():
@@ -69,34 +71,38 @@ def find_python_packages(root_path: Union[str, Path], config: chewedConfig) -> L
             try:
                 # Convert exclude patterns to strings
                 exclude_patterns = [str(p) for p in config.exclude_patterns]
-                
+
                 # Skip files in excluded directories
                 if any(part.startswith(".") for part in path.parts):
                     continue
-                if any(fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns):
+                if any(
+                    fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns
+                ):
                     continue
 
                 # Get package info
                 relative_path = path.relative_to(root_path)
-                package_name = ".".join(part for part in relative_path.parent.parts if part)
-                
+                package_name = ".".join(
+                    part for part in relative_path.parent.parts if part
+                )
+
                 if path.name == "__init__.py":
                     if package_name:
-                        packages.append({
-                            "name": package_name,
-                            "path": str(path.parent),
-                            "type": "package"
-                        })
+                        packages.append(
+                            {
+                                "name": package_name,
+                                "path": str(path.parent),
+                                "type": "package",
+                            }
+                        )
                 else:
                     module_name = path.stem
                     if package_name:
                         module_name = f"{package_name}.{module_name}"
-                    packages.append({
-                        "name": module_name,
-                        "path": str(path),
-                        "type": "module"
-                    })
-                    
+                    packages.append(
+                        {"name": module_name, "path": str(path), "type": "module"}
+                    )
+
             except Exception as e:
                 logger.warning(f"Failed to process {path}: {str(e)}")
                 continue
@@ -122,7 +128,7 @@ def _derive_nested_package_name(pkg_dir: Path, root_path: Path) -> str:
 
         # Remove version suffixes but preserve dots
         pkg_name = re.sub(r"[-_]v?\d+[\d_.]*(?=\.|$)", "", pkg_name)
-        
+
         return pkg_name.lower()
     except ValueError:
         return _derive_package_name(pkg_dir)
@@ -177,7 +183,7 @@ def _is_package(path: Path, config: chewedConfig) -> bool:
     # Check for basic package structure
     if not path.is_dir():  # Add this check
         return False
-        
+
     # Check for Python files
     has_py_files = False
     try:
@@ -188,7 +194,7 @@ def _is_package(path: Path, config: chewedConfig) -> bool:
 
     if not has_py_files and not config.allow_namespace_packages:
         return False
-        
+
     # Check for __init__.py if namespace packages are not allowed
     if not config.allow_namespace_packages:
         init_py = path / "__init__.py"

@@ -62,7 +62,9 @@ def test_analyze_local_package(tmp_path):
 
     with patch("chewed.core.process_modules") as mock_process:
         mock_process.return_value = [{"name": "test_pkg.module"}]
-        result = analyze_package(source=str(pkg_root), is_local=True, config=chewedConfig())
+        result = analyze_package(
+            source=str(pkg_root), is_local=True, config=chewedConfig()
+        )
         assert len(result["modules"]) >= 1
 
 
@@ -100,7 +102,9 @@ def test_analyze_module_processing(tmp_path, mocker):
     (pkg_dir / "__init__.py").touch()
     (pkg_dir / "test_module.py").write_text("def test(): pass")
 
-    with patch("chewed.core.process_modules", return_value=[{"name": "test"}]) as mock_process:
+    with patch(
+        "chewed.core.process_modules", return_value=[{"name": "test"}]
+    ) as mock_process:
         result = analyze_package(str(pkg_dir), is_local=True, config=chewedConfig())
         # Should be called exactly once for test_module.py (init.py is empty)
         assert mock_process.call_count == 1
@@ -131,9 +135,7 @@ def test_analyze_empty_package(tmp_path):
     (empty_pkg / "__init__.py").touch()
 
     with pytest.raises(RuntimeError):
-        analyze_package(
-            source=str(empty_pkg), is_local=True, config=chewedConfig()
-        )
+        analyze_package(source=str(empty_pkg), is_local=True, config=chewedConfig())
 
 
 def test_analyze_invalid_source():
@@ -149,9 +151,11 @@ def test_analyze_syntax_error(tmp_path):
     (pkg_dir / "__init__.py").touch()
     bad_file = pkg_dir / "invalid.py"
     bad_file.write_text("def invalid_syntax")
-    
+
     with pytest.raises(RuntimeError, match="No valid modules found"):
-        analyze_package(str(pkg_dir), is_local=True, config=chewedConfig(), verbose=False)
+        analyze_package(
+            str(pkg_dir), is_local=True, config=chewedConfig(), verbose=False
+        )
 
 
 def test_find_python_packages_namespace(tmp_path):
@@ -234,7 +238,9 @@ def test_find_python_packages_edge_cases(tmp_path):
     config = chewedConfig()
     packages = find_python_packages(tmp_path, config)
     pkg_names = [p["name"] for p in packages]
-    assert any(name.endswith("pkg.sub") for name in pkg_names), f"Expected pkg.sub in {pkg_names}"
+    assert any(
+        name.endswith("pkg.sub") for name in pkg_names
+    ), f"Expected pkg.sub in {pkg_names}"
 
 
 def test_example_processing():

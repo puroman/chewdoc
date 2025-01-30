@@ -130,15 +130,14 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
     writer = MystWriter()
     package_info = {
         "package": "test_pkg",
-        "modules": [{
-            "name": "test_module",
-            "examples": [
-                {"invalid": "format"},
-                {"output": "missing code field"}
-            ]
-        }]
+        "modules": [
+            {
+                "name": "test_module",
+                "examples": [{"invalid": "format"}, {"output": "missing code field"}],
+            }
+        ],
     }
-    
+
     with caplog.at_level(logging.WARNING):
         writer.generate(package_info, tmp_path)
     assert "Skipping example: Missing 'code'/'content' field" in caplog.text
@@ -422,12 +421,9 @@ def test_myst_writer_path_sanitization(tmp_path):
     writer = MystWriter()
     package_info = {
         "package": "test/pkg",
-        "modules": [{
-            "name": "test.module",
-            "docstring": "Test module"
-        }]
+        "modules": [{"name": "test.module", "docstring": "Test module"}],
     }
-    
+
     writer.generate(package_info, tmp_path)
     expected_path = tmp_path / "test_module.md"
     assert expected_path.exists()
