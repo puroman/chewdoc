@@ -1,9 +1,9 @@
-from src.chewdoc.utils import safe_write
+from src.chewed.utils import safe_write
 import pytest
 from pathlib import Path
 import ast
-from src.chewdoc.config import ChewdocConfig
-from src.chewdoc.utils import (
+from src.chewed.config import ChewdocConfig
+from src.chewed.utils import (
     format_function_signature,
     extract_constant_values,
     validate_ast,

@@ -1,11 +1,11 @@
 import click
 from pathlib import Path
-from chewdoc.metadata import get_package_metadata, _download_pypi_package
-from chewdoc.module_processor import process_modules, DocProcessor
-from chewdoc.package_discovery import find_python_packages
-from chewdoc.package_analysis import analyze_package, analyze_relationships
-from chewdoc.doc_generation import generate_docs
-from chewdoc.config import ChewdocConfig, load_config
+from chewed.metadata import get_package_metadata, _download_pypi_package
+from chewed.module_processor import process_modules, DocProcessor
+from chewed.package_discovery import find_python_packages
+from chewed.package_analysis import analyze_package, analyze_relationships
+from chewed.doc_generation import generate_docs
+from chewed.config import ChewdocConfig, load_config
 import logging
 import ast
 import sys

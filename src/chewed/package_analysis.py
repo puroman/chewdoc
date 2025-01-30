@@ -31,17 +31,10 @@ def analyze_package(
     """Analyze Python package and extract documentation metadata."""
     config = config or ChewdocConfig()
     try:
-        # Convert source to Path object early
         path = Path(str(source)).resolve()
         if not path.exists():
-            # Return empty structure instead of raising error
-            logger.warning(f"Source path does not exist: {path}")
-            return {
-                "package": _derive_package_name(path),
-                "modules": [],
-                "relationships": [],
-                "config": config
-            }
+            logger.error(f"Source path does not exist: {path}")
+            raise ValueError(f"Source path does not exist: {path}")
 
         if verbose and (start := datetime.now()):
             logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
@@ -63,7 +56,7 @@ def analyze_package(
         package_info["modules"] = []
         module_paths = process_modules(path, config)
 
-        if not module_paths:
+        if not module_paths and not config.allow_empty_packages:
             raise RuntimeError("No valid modules found in package")
 
         for module_data in module_paths:
@@ -102,8 +95,8 @@ def analyze_package(
             logger.info(f"📊 Processed {len(package_info['modules'])} modules")
 
         return package_info
-    except SyntaxError as e:
-        raise ValueError(f"Syntax error in {path}: {e}") from e
+    except (ValueError, SyntaxError) as e:
+        raise  # Re-raise validation errors
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e

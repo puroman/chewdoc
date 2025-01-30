@@ -1,12 +1,12 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from chewdoc.utils import (
+from chewed.utils import (
     get_annotation,
     infer_responsibilities,
     format_function_signature,
 )
-from chewdoc.config import ChewdocConfig
+from chewed.config import ChewdocConfig
 
 import ast
 import click
@@ -14,7 +14,7 @@ import fnmatch
 import re
 import logging
 
-from chewdoc.constants import META_TEMPLATE, MODULE_TEMPLATE
+from chewed.constants import META_TEMPLATE, MODULE_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -274,17 +274,15 @@ class MystWriter:
         output = []
         for i, ex in enumerate(examples):
             try:
-                if isinstance(ex, dict):
+                if isinstance(ex, (str, dict)):
                     code = ex.get("code", ex.get("content", ""))
+                    if not code.strip():
+                        raise ValueError("Empty example content")
+                    output.append(f"### Example {i+1}\n```python\n{code}\n```")
                 else:
-                    code = str(ex)
-                    
-                if not code.strip():
-                    continue
-                    
-                output.append(f"### Example {i+1}\n```python\n{code}\n```")
+                    raise ValueError(f"Invalid type: {type(ex).__name__}")
             except Exception as e:
-                logger.warning(f"Skipping invalid example at index {i} - type: {type(ex).__name__}")
+                logger.warning(f"Skipping example {i+1}: {str(e)}")
         return "\n\n".join(output) if output else ""
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:

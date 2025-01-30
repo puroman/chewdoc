@@ -1,5 +1,5 @@
 import ast
-from chewdoc.config import ChewdocConfig
+from chewed.config import ChewdocConfig
 from typing import Any, List, Tuple, Union, Optional, Dict
 from pathlib import Path
 import logging

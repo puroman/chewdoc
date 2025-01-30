@@ -5,7 +5,7 @@ Configuration handling for chewdoc documentation generator
 from pathlib import Path
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict, ValidationError
-from chewdoc.constants import (  # Updated imports
+from chewed.constants import (  # Updated imports
     DEFAULT_EXCLUSIONS,
     TEMPLATE_VERSION,
     TYPE_ALIASES,

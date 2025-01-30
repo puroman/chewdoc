@@ -4,8 +4,8 @@ import ast
 import fnmatch
 import logging
 from typing import Dict, List, Optional
-from chewdoc.config import ChewdocConfig
-from chewdoc.ast_utils import extract_docstrings, extract_type_info
+from chewed.config import ChewdocConfig
+from chewed.ast_utils import extract_docstrings, extract_type_info
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     """Find and process modules in package with init.py handling"""
     modules = []
+    valid_modules = 0
     
     # Always include __init__.py even if empty
     init_py = package_path / "__init__.py"
@@ -24,22 +25,22 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
             "internal_deps": [],
             "type_info": {"classes": {}, "functions": {}}
         })
+        valid_modules += 1  # Count init.py as valid
 
     # Process other files with lenient handling
     for py_file in package_path.glob("**/*.py"):
         if _should_process(py_file, config):
             try:
-                module_data = _process_single_file(py_file, package_path) or {
-                    "name": py_file.stem,
-                    "path": str(py_file),
-                    "imports": [],
-                    "internal_deps": []
-                }
-                modules.append(module_data)
+                # Process module
+                module_data = _process_single_file(py_file, package_path)
+                if module_data:
+                    modules.append(module_data)
+                    valid_modules += 1
             except SyntaxError as e:
                 logger.warning(f"Skipping {py_file} due to syntax error")
-                continue
     
+    if valid_modules == 0:
+        raise RuntimeError("No valid modules found in package")
     return modules
 
 

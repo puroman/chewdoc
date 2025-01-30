@@ -1,5 +1,5 @@
 import click
-from chewdoc.cli import cli
+from chewed.cli import cli
 
 
 def main():

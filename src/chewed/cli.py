@@ -1,13 +1,13 @@
-from chewdoc._version import __version__
+from chewed._version import __version__
 import click
-from chewdoc.core import analyze_package, generate_docs
+from chewed.core import analyze_package, generate_docs
 from pathlib import Path
 from datetime import datetime
 import sys
 import traceback
 import logging
 from typing import Optional, Union, List, Dict, Any
-from chewdoc.config import load_config
+from chewed.config import load_config
 
 logger = logging.getLogger(__name__)
 

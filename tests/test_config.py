@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from src.chewdoc.config import ChewdocConfig, load_config
+from src.chewed.config import ChewdocConfig, load_config
 import tomllib
 
 

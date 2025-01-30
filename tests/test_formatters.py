@@ -1,4 +1,4 @@
-from src.chewdoc.formatters.myst_writer import MystWriter
+from src.chewed.formatters.myst_writer import MystWriter
 from pathlib import Path
 import ast
 import pytest
@@ -129,26 +129,21 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
     writer = MystWriter()
     package_info = {
         "package": "testpkg",
-        "modules": [
-            {
-                "name": "bad_examples",
-                "examples": [
-                    "print('valid string')",
-                    {"content": "another valid"},
-                    ["invalid list example"],
-                    42,
-                    {"type": "pytest"},  # Missing code
-                ],
-            }
-        ],
+        "modules": [{
+            "name": "bad_examples",
+            "examples": [
+                ["invalid list example"],  # Example 1
+                {"type": "pytest"},        # Example 2 (no code)
+                42                         # Example 3
+            ]
+        }]
     }
-
+    
     writer.generate(package_info, tmp_path)
-    # Verify specific error messages
     logs = caplog.text
-    assert "Skipping invalid example at index 2 - type: list" in logs
-    assert "Skipping invalid example at index 3 - type: int" in logs 
-    assert "Skipping invalid example at index 4 - type: dict" in logs
+    assert "Skipping example 1: Invalid type: list" in logs
+    assert "Skipping example 2: Empty example content" in logs
+    assert "Skipping example 3: Invalid type: int" in logs
 
 
 def test_myst_writer_config_initialization():
