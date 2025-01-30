@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List, Union
 from .formatters.myst_writer import MystWriter
 from .types import ModuleInfo
+from chewed.module_processor import process_modules
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +56,6 @@ def generate_docs(
 
     if verbose:
         logger.info(f"Generated documentation for {len(modules)} modules")
+
+    writer = MystWriter()
+    writer.generate(package_info, output_path)
