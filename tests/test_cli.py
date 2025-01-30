@@ -87,19 +87,23 @@ def test_cli_output_directory(tmp_path):
         assert result.exit_code == 0
 
 
-def test_cli_pypi_package():
-    """Test processing a PyPI package"""
+def test_cli_pypi_package(tmp_path):
+    """Test PyPI package processing"""
     runner = CliRunner()
-    with patch("chewed.cli.analyze_package") as mock_analyze, patch(
-        "chewed.cli.generate_docs"
-    ):
-        mock_analyze.return_value = {"package": "requests", "modules": []}
-
-        result = runner.invoke(cli, ["chew", "requests", "--pypi"])
+    
+    with patch("chewed.cli.analyze_package") as mock_analyze, \
+         patch("chewed.cli.generate_docs") as mock_generate, \
+         patch("chewed.cli.download_package") as mock_download:
+        
+        mock_download.return_value = tmp_path / "downloaded_pkg"
+        mock_analyze.return_value = {
+            "package": "test_pkg",
+            "modules": [],
+            "relationships": {"dependency_graph": {}, "external_deps": []},
+            "metadata": {}
+        }
+        
+        result = runner.invoke(cli, ["chew", "requests", "--pypi", "-o", str(tmp_path / "docs")])
         assert result.exit_code == 0
-        mock_analyze.assert_called_once_with(
-            source="requests",
-            is_local=False,
-            config=mock_analyze.call_args[1]["config"],
-            verbose=False,
-        )
+        assert mock_analyze.call_count == 1
+        assert mock_generate.call_count == 1

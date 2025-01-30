@@ -3,6 +3,7 @@ import click
 import logging
 from pathlib import Path
 from typing import Optional
+import tempfile
 
 from chewed.core import analyze_package
 from chewed.doc_generation import generate_docs
@@ -14,65 +15,100 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-@click.version_option(version=__version__)
+@click.version_option()
 def cli():
     """Documentation generator for Python packages."""
     pass
 
 
-@cli.command(name="chew")
-@click.argument("source", type=click.Path(exists=True, path_type=Path))
-@click.option(
-    "--output",
-    "-o",
-    type=click.Path(path_type=Path),
-    default="docs",
-    help="Output directory for documentation",
-)
-@click.option(
-    "--local/--pypi", default=True, help="Process local package or download from PyPI"
-)
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-def chew_command(source: Path, output: Path, local: bool, verbose: bool):
+@cli.command()
+@click.argument('source', type=str)
+@click.option('--output', '-o', default='docs',
+              help='Output directory for documentation')
+@click.option('--local/--pypi', default=True,
+              help='Process local package or download from PyPI')
+@click.option('--verbose', '-v', count=True,
+              help='Enable verbose output')
+def generate(source: str, output: str, local: bool, verbose: bool):
     """Generate documentation for a Python package."""
     try:
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO if verbose else logging.WARNING,
-            format="%(message)s",
-            force=True,
-        )
-        logger.setLevel(logging.INFO if verbose else logging.WARNING)
-
-        # Validate source exists if local
-        if local:
-            source = source.resolve()
-            if not source.exists():
-                raise click.BadParameter(f"Source path does not exist: {source}")
-
-        # Load config
+        logger.info("📚 Generating project documentation...")
+        logger.info("🕒 Timing documentation generation...")
+        
         config = load_config()
-
-        # Process package
-        logger.info(f"📦 Processing {'local' if local else 'PyPI'} package: {source}")
-        package_info = analyze_package(source=source, config=config, verbose=verbose)
-
-        # Generate documentation
-        output.mkdir(parents=True, exist_ok=True)
-        logger.info(f"📝 Generating documentation in {output}")
-        generate_docs(package_info, output)
-
-        if verbose:
-            logger.info(f"✅ Documentation generated successfully in {output}")
-
+        logger.info("Loading configuration")
+        
+        package_info = analyze_package(source, is_local=local, config=config)
+        logger.info("Analyzing package")
+        
+        generate_docs(package_info, Path(output), verbose=verbose)
+        logger.info("Generating documentation")
+        
+        click.echo(f"✅ Documentation generated in {output}/")
     except Exception as e:
-        logger.error(str(e))
+        logger.error(f"❌ Error: {str(e)}")
         raise click.ClickException(str(e))
+
+
+def download_package(package_name: str, tmp_dir: Path) -> Path:
+    """Download a package from PyPI and return its path."""
+    import subprocess
+    import tarfile
+    import zipfile
+    
+    download_dir = tmp_dir / "download"
+    download_dir.mkdir(exist_ok=True)
+    
+    try:
+        # Download package
+        subprocess.run(
+            ["pip", "download", "--no-deps", "-d", str(download_dir), package_name],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        # Find the downloaded package
+        packages = list(download_dir.glob(f"{package_name}*"))
+        if not packages:
+            raise RuntimeError(f"Failed to download package: {package_name}")
+        
+        # Extract package if it's a compressed file
+        package_path = packages[0]
+        extracted_dir = tmp_dir / "extracted"
+        extracted_dir.mkdir(exist_ok=True)
+        
+        # Improved extraction logic
+        if package_path.suffix in ['.tar.gz', '.tgz']:
+            with tarfile.open(package_path, 'r:gz') as tar:
+                tar.extractall(path=extracted_dir)
+        elif package_path.suffix in ['.zip']:
+            with zipfile.ZipFile(package_path, 'r') as zip_ref:
+                zip_ref.extractall(extracted_dir)
+        elif package_path.suffix in ['.whl']:
+            # Handle wheel files
+            import zipfile
+            with zipfile.ZipFile(package_path, 'r') as wheel:
+                wheel.extractall(extracted_dir)
+        
+        # Find the extracted package directory
+        extracted_packages = list(extracted_dir.glob(f"{package_name}*"))
+        if not extracted_packages:
+            # Try finding any directory
+            extracted_packages = [d for d in extracted_dir.iterdir() if d.is_dir()]
+        
+        if not extracted_packages:
+            raise RuntimeError(f"Failed to extract package: {package_name}")
+        
+        return extracted_packages[0]
+        
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Failed to download package: {e.stderr}")
 
 
 def main():
     """Entry point for the CLI."""
-    cli(prog_name="chew")
+    cli()
 
 
 if __name__ == "__main__":

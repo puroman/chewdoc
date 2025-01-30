@@ -24,14 +24,18 @@ logger = logging.getLogger(__name__)
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def cli(source: str, output: str, local: bool, verbose: bool) -> None:
     """Main entry point for package analysis"""
+    logger.info("Loading configuration")
     config = load_config()
+    logger.info("Analyzing package")
     package_info = analyze_package(
         source, is_local=local, config=config, verbose=verbose
     )
+    logger.info("Generating documentation")
     generate_docs(package_info, Path(output), verbose=verbose)
 
 
 def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
+    logger.debug("Finding imports in AST")
     imports = []
     stdlib_modules = sys.stdlib_module_names
 
@@ -45,7 +49,9 @@ def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
                 )
                 first_part = full_path.split(".")[0]
                 import_type = "stdlib" if first_part in stdlib_modules else "external"
+                logger.debug(f"Found import: {full_path} of type: {import_type}")
                 imports.append({"full_path": full_path, "type": import_type})
+    logger.info(f"Total imports found: {len(imports)}")
     return imports
 
 
@@ -53,12 +59,15 @@ def process_package_modules(
     pkg_path: Path, config: chewedConfig
 ) -> List[Dict[str, Any]]:
     """Process all Python modules in a package"""
+    logger.info(f"Processing package modules in: {pkg_path}")
     modules = []
     processed_files = set()  # Track processed files
 
     for py_file in pkg_path.glob("*.py"):
+        logger.debug(f"Checking file: {py_file}")
         # Skip already processed files
         if str(py_file.resolve()) in processed_files:
+            logger.debug(f"Skipping already processed file: {py_file}")
             continue
 
         # Skip excluded files
@@ -66,17 +75,24 @@ def process_package_modules(
             fnmatch.fnmatch(str(py_file), pattern)
             for pattern in config.exclude_patterns
         ):
+            logger.debug(f"Skipping excluded file: {py_file}")
             continue
 
         # Skip empty __init__.py files
         if py_file.name == "__init__.py" and py_file.stat().st_size == 0:
+            logger.debug(f"Skipping empty __init__.py file: {py_file}")
             continue
 
         try:
+            logger.info(f"Processing module: {py_file}")
             module_info = process_modules([str(py_file)], config)
             if module_info:
                 modules.extend(module_info)
                 processed_files.add(str(py_file.resolve()))
+                logger.info(f"Processed module: {py_file}")
+            else:
+                logger.error("No valid modules found")
+                raise RuntimeError("No valid modules found")
         except SyntaxError:
             logger.warning(f"Syntax error in {py_file}")
             continue
@@ -84,6 +100,7 @@ def process_package_modules(
             logger.warning(f"Failed to process {py_file}: {str(e)}")
             continue
 
+    logger.info(f"Total modules processed: {len(modules)}")
     return modules
 
 
@@ -94,12 +111,14 @@ def analyze_package(
     verbose: bool = False
 ) -> dict:
     """Main package analysis entry point"""
+    logger.info(f"Starting analysis for source: {source}")
     try:
         # Ensure source is a Path object and config exists
         source = Path(source).resolve()
         config = config or chewedConfig()
         
         if not source.exists():
+            logger.error(f"Source path does not exist: {source}")
             raise ValueError(f"Source path does not exist: {source}")
 
         logger.info(f"Analyzing package at: {source}")
@@ -108,6 +127,7 @@ def analyze_package(
             # Process modules
             modules = process_modules(source, config)
             if not modules:
+                logger.error("No valid modules found")
                 raise RuntimeError("No valid modules found")
         except Exception as e:
             logger.error(f"Failed to process modules: {str(e)}")
@@ -122,10 +142,12 @@ def analyze_package(
             valid_modules.append(module)
 
         if not valid_modules:
+            logger.error("No valid modules found after validation")
             raise RuntimeError("No valid modules found")
 
         # Get package name and analyze relationships
         package_name = get_package_name(source)
+        logger.info(f"Analyzing relationships for package: {package_name}")
         try:
             relationships = analyze_relationships(valid_modules, package_name)
         except Exception as e:
@@ -134,6 +156,7 @@ def analyze_package(
                 logger.debug("Module data causing relationship analysis failure:", exc_info=True)
             relationships = {"dependency_graph": {}, "external_deps": []}
         
+        logger.info("Package analysis completed successfully")
         return {
             "package": package_name,
             "path": str(source),
@@ -142,7 +165,8 @@ def analyze_package(
             "metadata": get_package_metadata(source)
         }
         
-    except RuntimeError:
+    except (RuntimeError, ValueError):
+        logger.error("Runtime or value error occurred during analysis")
         raise
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
@@ -151,6 +175,7 @@ def analyze_package(
 
 def _create_empty_package_info(path: Path) -> dict:
     """Create minimal package info for empty namespace packages"""
+    logger.info(f"Creating empty package info for: {path}")
     return {
         "package": path.name,
         "path": str(path),

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0.0", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,9 +10,10 @@ authors = [{name = "Roma Romanov", email = "puroman@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
-    "click>=8.1.8",
+    "astroid>=3.0.0",
+    "click",
+    "tomli",
     "pydantic>=2.10.6",
-    "astunparse>=1.6.3",
     "myst-parser>=4.0.0",
     "python-dotenv>=1.0.1"
 ]
@@ -38,13 +39,14 @@ exclude = ["tests*"]
 
 [project.scripts]
 chewed = "chewed.cli:cli"
-chew = "chewed.__main__:main"
+chew = "chewed.cli:cli"
 
 [tool.chewed]
 exclude_patterns = ["__pycache__", "*.test", "tests/", "tests/**"]
 known_types = { "Sequence" = "collections.abc.Sequence" }
 enable_cross_references = true
 max_example_lines = 15
+output_format = "myst"
 
 [tool.black]
 line-length = 88
