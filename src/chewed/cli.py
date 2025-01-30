@@ -19,10 +19,10 @@ def cli():
     pass
 
 @cli.command(name="chew")
-@click.argument("source")
+@click.argument("source", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--output", "-o", 
-    type=click.Path(), 
+    type=click.Path(path_type=Path), 
     default="docs",
     help="Output directory for documentation"
 )
@@ -36,7 +36,7 @@ def cli():
     is_flag=True, 
     help="Enable verbose output"
 )
-def chew_command(source: str, output: str, local: bool, verbose: bool):
+def chew_command(source: Path, output: Path, local: bool, verbose: bool):
     """Generate documentation for a Python package."""
     try:
         # Configure logging
@@ -49,10 +49,9 @@ def chew_command(source: str, output: str, local: bool, verbose: bool):
 
         # Validate source exists if local
         if local:
-            source_path = Path(source).resolve()
-            if not source_path.exists():
+            source = source.resolve()
+            if not source.exists():
                 raise click.BadParameter(f"Source path does not exist: {source}")
-            source = str(source_path)
 
         # Load config
         config = load_config()
@@ -61,19 +60,17 @@ def chew_command(source: str, output: str, local: bool, verbose: bool):
         logger.info(f"📦 Processing {'local' if local else 'PyPI'} package: {source}")
         package_info = analyze_package(
             source=source,
-            is_local=local,
             config=config,
             verbose=verbose
         )
         
         # Generate documentation
-        output_path = Path(output)
-        output_path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"📝 Generating documentation in {output_path}")
-        generate_docs(package_info, output_path)
+        output.mkdir(parents=True, exist_ok=True)
+        logger.info(f"📝 Generating documentation in {output}")
+        generate_docs(package_info, output)
         
         if verbose:
-            logger.info(f"✅ Documentation generated successfully in {output_path}")
+            logger.info(f"✅ Documentation generated successfully in {output}")
             
     except Exception as e:
         logger.error(str(e))

@@ -57,7 +57,7 @@ def _is_namespace_package(pkg_path: Path) -> bool:
 
 def find_python_packages(root_path: Union[str, Path], config: chewedConfig) -> List[Dict]:
     """Find Python packages in the given directory."""
-    root_path = Path(root_path).resolve()  # Make sure we have an absolute path
+    root_path = Path(root_path).resolve()
     if not root_path.exists():
         raise ValueError(f"Path does not exist: {root_path}")
 
@@ -67,10 +67,13 @@ def find_python_packages(root_path: Union[str, Path], config: chewedConfig) -> L
     try:
         for path in root_path.rglob("*.py"):
             try:
+                # Convert exclude patterns to strings
+                exclude_patterns = [str(p) for p in config.exclude_patterns]
+                
                 # Skip files in excluded directories
                 if any(part.startswith(".") for part in path.parts):
                     continue
-                if any(fnmatch.fnmatch(str(path), pattern) for pattern in config.exclude_patterns):
+                if any(fnmatch.fnmatch(str(path), pattern) for pattern in exclude_patterns):
                     continue
 
                 # Get package info

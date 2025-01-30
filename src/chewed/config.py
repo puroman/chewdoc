@@ -3,8 +3,8 @@ Configuration handling for chewed documentation generator
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict, ValidationError
+from typing import Dict, List, Optional, Union
+from pydantic import BaseModel, Field, ConfigDict, ValidationError, validator
 from chewed.constants import (  # Updated imports
     DEFAULT_EXCLUSIONS,
     TEMPLATE_VERSION,
@@ -27,19 +27,13 @@ class chewedConfig(BaseModel):
     """Main configuration model for chewed"""
 
     exclude_patterns: List[str] = Field(
-        default=DEFAULT_EXCLUSIONS,
-        description="File patterns to exclude from processing",
+        default_factory=lambda: ["tests/*", "docs/*", "examples/*"]
     )
     template_version: str = Field(
         TEMPLATE_VERSION, description="Version identifier for documentation templates"
     )
-    known_types: Dict[str, str] = Field(
-        default=TYPE_ALIASES,
-        description="Type aliases for simplifying complex annotations",
-    )
-    output_format: str = Field(
-        default="myst", description="Output format (myst/markdown)"
-    )
+    known_types: Dict[str, str] = Field(default_factory=dict)
+    output_format: str = "myst"
     template_dir: Optional[Path] = Field(
         default=None, description="Custom template directory"
     )
@@ -49,9 +43,7 @@ class chewedConfig(BaseModel):
     max_example_lines: int = Field(
         default=10, ge=1, description="Max lines in usage examples"
     )
-    allow_namespace_packages: bool = Field(
-        True, description="Recognize namespace packages without __init__.py"
-    )
+    allow_namespace_packages: bool = False
     temp_dir: Path = Field(
         default_factory=lambda: Path("/tmp/chewed"),
         description="Temporary directory for package processing",
@@ -59,19 +51,28 @@ class chewedConfig(BaseModel):
     include_tests: bool = Field(
         False, description="Include test modules in documentation"
     )
+    namespace_fallback: bool = True
     module_discovery_patterns: List[str] = Field(
-        default=["**/*.py", "!test_*.py", "!*/tests/*", "!*/_*"],
-        description="File patterns for module discovery (include/exclude)",
-    )
-    namespace_fallback: bool = Field(
-        default=True,
-        description="Create minimal documentation for empty or namespace packages",
+        default_factory=lambda: ["**/*.py"]
     )
     allow_empty_packages: bool = Field(
         default=True, description="Allow processing of packages with no modules"
     )
+    verbose: bool = False
 
-    model_config = ConfigDict(extra="forbid")
+    @validator("exclude_patterns", pre=True)
+    def validate_exclude_patterns(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("exclude_patterns must be a list")
+        return [str(pattern) for pattern in v]
+
+    @validator("module_discovery_patterns", pre=True)
+    def validate_discovery_patterns(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("module_discovery_patterns must be a list")
+        return [str(pattern) for pattern in v]
+
+    model_config = ConfigDict(extra="ignore")
 
     @classmethod
     def from_toml(cls, path: Path) -> "chewedConfig":

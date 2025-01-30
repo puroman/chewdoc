@@ -82,53 +82,49 @@ def process_package_modules(pkg_path: Path, config: chewedConfig) -> List[Dict[s
     return modules
 
 
-def analyze_package(
-    source: str, 
-    is_local: bool = True,
-    config: Optional[chewedConfig] = None,
-    verbose: bool = False
-) -> Dict[str, Any]:
-    """Analyze a Python package with improved error handling"""
-    config = config or chewedConfig()
-    source_path = Path(source).resolve()
-
-    if not source_path.exists():
-        raise ValueError(f"Source path does not exist: {source}")
-
+def analyze_package(source: Path, config: chewedConfig, verbose: bool = False) -> dict:
+    """Main package analysis entry point"""
     try:
-        packages = find_python_packages(source_path, config)
-        if not packages:
-            raise ValueError("No valid Python packages found")
+        # Ensure source is a Path object
+        source = Path(source).resolve()
+        if not source.exists():
+            raise ValueError(f"Package path does not exist: {source}")
 
-        # Process modules with empty package check
-        modules = []
-        processed_paths = set()  # Track processed package paths
+        logger.info(f"Analyzing package at: {source}")
         
-        for pkg in packages:
-            pkg_path = Path(pkg["path"])
-            if str(pkg_path) in processed_paths:
-                continue
-                
-            if not any(pkg_path.glob("*.py")):
-                continue
-                
-            pkg_modules = process_package_modules(pkg_path, config)
-            if pkg_modules:
-                modules.extend(pkg_modules)
-                processed_paths.add(str(pkg_path))
-
+        # Process modules
+        modules = process_modules(source, config)
         if not modules:
+            if config.allow_namespace_packages:
+                logger.warning(f"Empty namespace package at {source}")
+                return _create_empty_package_info(source)
             raise RuntimeError("No valid modules found")
 
+        # Get package name before processing relationships
+        package_name = get_package_name(source)
+        
+        # Analyze relationships with package name
+        relationships = analyze_relationships(modules, package_name)
+        
         return {
-            "package": get_package_name(source_path),
+            "package": package_name,  # Use already retrieved name
+            "path": str(source),
             "modules": modules,
-            "config": config
+            "relationships": relationships,
+            "metadata": get_package_metadata(source)
         }
-
-    except ValueError as e:
-        logger.error(str(e))
-        raise
+        
     except Exception as e:
-        logger.error(f"Package analysis failed: {str(e)}", exc_info=verbose)
-        raise RuntimeError(f"Package analysis failed: {str(e)}") from e
+        logger.error(f"Package analysis failed: {str(e)}")
+        raise
+
+
+def _create_empty_package_info(path: Path) -> dict:
+    """Create minimal package info for empty namespace packages"""
+    return {
+        "package": path.name,
+        "path": str(path),
+        "modules": [],
+        "relationships": {},
+        "metadata": {}
+    }

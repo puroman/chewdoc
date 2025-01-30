@@ -28,78 +28,123 @@ def analyze_package(
     config: Optional[chewedConfig] = None,
     verbose: bool = False,
 ) -> Dict[str, Any]:
-    """Analyze Python package and extract documentation metadata."""
+    """Analyze a Python package with improved error handling"""
     config = config or chewedConfig()
+    source_path = Path(source).resolve()
+
+    if not source_path.exists():
+        raise ValueError(f"Source path does not exist: {source}")
+
     try:
-        path = Path(str(source)).resolve()
-        if not path.exists():
-            logger.error(f"Source path does not exist: {path}")
-            raise ValueError(f"Source path does not exist: {path}")
+        packages = find_python_packages(source_path, config)
+        if not packages:
+            raise ValueError("No valid Python packages found")
 
-        if verbose and (start := datetime.now()):
-            logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
+        # Get package name with fallback
+        package_name = get_package_name(source_path)
+        if not package_name or package_name in ["src", "lib"]:
+            # Try to get name from parent directory
+            parent_name = source_path.parent.name
+            if parent_name and parent_name.isidentifier():
+                package_name = parent_name
+                logger.info(f"Using parent directory name as package name: {package_name}")
+            else:
+                # Final fallback: use the last valid directory name in the path
+                for part in reversed(source_path.parts):
+                    if part and part.isidentifier() and part not in ["src", "lib", "site-packages", "dist-packages"]:
+                        package_name = part
+                        logger.info(f"Using directory name as package name: {package_name}")
+                        break
+                else:
+                    package_name = "unknown_package"
+                    logger.warning("Could not determine package name, using 'unknown_package'")
 
-        if verbose:
-            logger.info("🔍 Fetching package metadata...")
-        package_info = get_package_metadata(source, version, is_local)
+        if not package_name.isidentifier():
+            package_name = "unknown_package"
+            logger.warning(f"Invalid package name derived, falling back to 'unknown_package'")
 
-        # Add fallback package name derivation
-        package_name = package_info.get("package") or _derive_package_name(path)
-        package_info["package"] = package_name
-        package_info.setdefault("python_requires", ">=3.6")
-        package_info.setdefault("license", "Proprietary")
+        package_info = {
+            "package": package_name,
+            "version": version or "unknown",
+            "modules": [],
+            "relationships": {},
+            "metadata": get_package_metadata(source_path),
+            "path": str(source_path)
+        }
 
-        if verbose:
-            logger.info(f"📦 Processing package: {package_name}")
-            logger.info("🧠 Processing module ASTs...")
+        start = datetime.now()
+        module_paths = process_modules(source_path, config)
+        
+        if not module_paths:
+            logger.warning(f"No modules found in {source_path}")
+            if config.allow_namespace_packages:
+                return package_info
+            raise RuntimeError(f"No modules found in {source_path}")
+        
+        # Enhanced validation with concrete error messages
+        validated_modules = []
+        for idx, module_data in enumerate(module_paths):
+            try:
+                if module_data is None:
+                    logger.warning(f"Skipping None module at index {idx}")
+                    continue
+                    
+                if not isinstance(module_data, dict):
+                    logger.warning(f"Skipping non-dict module at index {idx}: {type(module_data)}")
+                    continue
 
-        package_info["modules"] = []
-        module_paths = process_modules(path, config)
+                # Initialize default module structure
+                default_module = {
+                    "name": "",
+                    "path": "",
+                    "imports": [],
+                    "internal_deps": [],
+                }
+                
+                # Update with actual data
+                default_module.update(module_data)
+                module_data = default_module
+                
+                if not module_data["name"]:
+                    logger.warning(f"Module at index {idx} missing 'name' key. Full path: {module_data.get('path', 'unknown')}")
+                    continue
+                    
+                module_name = module_data["name"]
+                if not module_name.isidentifier():
+                    logger.warning(f"Invalid module name '{module_name}' in {module_data.get('path', 'unknown')}")
+                    continue
+                
+                validated_modules.append(module_data)
+                
+            except Exception as e:
+                logger.error(f"❌ Invalid module at index {idx}: {str(e)}")
+                if verbose:
+                    logger.info(f"Problematic module data: {module_data}", exc_info=True)
 
-        if not module_paths and not config.allow_empty_packages:
-            raise RuntimeError("No valid modules found in package")
+        if not validated_modules:
+            raise RuntimeError(f"No valid modules found in {source_path}. Check exclude patterns and package structure.")
 
-        for module_data in module_paths:
-            module_path = Path(module_data["path"])
+        try:
+            package_info["modules"] = validated_modules
+            package_info["relationships"] = analyze_relationships(validated_modules, package_name)
+        except Exception as e:
+            logger.error(f"Failed to analyze relationships: {str(e)}")
             if verbose:
-                logger.info(f"🔄 Processing: {module_data['name']}")
-
-            with open(module_path, "r") as f:
-                module_ast = ast.parse(f.read())
-
-            validate_ast(module_ast)
-            module_info = {
-                "name": module_data["name"],
-                "path": str(module_path),
-                "ast": module_ast,
-                "docstrings": extract_docstrings(module_ast),
-                "type_info": extract_type_info(module_ast, config),
-                "constants": {
-                    name: {"value": value}
-                    for name, value in extract_constant_values(module_ast)
-                    if name.isupper()
-                },
-                "examples": find_usage_examples(module_ast),
-                "imports": module_data["imports"],
-                "internal_deps": module_data.get("internal_deps", []),
-            }
-            package_info["modules"].append(module_info)
-
-        package_info["relationships"] = analyze_relationships(
-            package_info["modules"], package_name
-        )
+                logger.info("Module data causing relationship analysis failure:", exc_info=True)
+                for idx, module in enumerate(validated_modules):
+                    logger.info(f"Module {idx}: {module}")
+            package_info["relationships"] = {}
 
         if verbose:
             duration = datetime.now() - start
             logger.info(f"🏁 Analysis completed in {duration.total_seconds():.3f}s")
-            logger.info(f"📊 Processed {len(package_info['modules'])} modules")
+            logger.info(f"📊 Processed {len(package_info['modules'])} modules from {source_path}")
 
         return package_info
-    except (ValueError, SyntaxError) as e:
-        raise  # Re-raise validation errors
+
     except Exception as e:
-        logger.error(f"Package analysis failed: {str(e)}")
-        raise RuntimeError(f"Package analysis failed: {str(e)}") from e
+        logger.error(f"Package analysis failed for {source_path}: {str(e)}", exc_info=verbose)
+        raise
 
 
 def _derive_package_name(package_path: Path) -> str:

@@ -73,78 +73,81 @@ def _should_process(path: Path, config: chewedConfig) -> bool:
     )
 
 
-def _create_module_data(
-    file_path: Path, package_path: Path, config: chewedConfig
-) -> dict | None:
-    """Create module data from a Python file"""
+def _create_module_data(py_file: Path, package_path: Path, config: chewedConfig) -> dict:
+    """Create module data structure with proper import formatting"""
     try:
-        # Ensure we're working with Path objects
-        file_path = Path(file_path)
-        package_path = Path(package_path)
-        
-        # Get relative path for module name
-        try:
-            rel_path = file_path.relative_to(package_path)
-            module_name = ".".join(part for part in rel_path.parent.parts + (rel_path.stem,) if part != ".")
-        except ValueError:
-            logger.error(f"File {file_path} is not under package path {package_path}")
-            return None
-
-        # Read and parse the file
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                tree = ast.parse(content)
-        except Exception as e:
-            logger.error(f"Failed to parse {file_path}: {str(e)}")
-            return None
-
-        # Extract imports and dependencies
+        with open(py_file, "r") as f:
+            ast_tree = ast.parse(f.read())
+            
+        # Get valid module name
+        module_name = _get_module_name(py_file, package_path)
+        if not module_name:
+            return {}
+            
         imports = []
-        internal_deps = []
-        
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for name in node.names:
-                    imports.append(name.name)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    imports.append(node.module)
-                    if not node.module.startswith('.'):
-                        # Check if it's an internal dependency
-                        if node.module.startswith(package_path.name):
-                            internal_deps.append(node.module)
+        # Process AST to find imports
+        for node in ast.walk(ast_tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                for alias in node.names:
+                    # Convert import nodes to consistent dictionary format
+                    full_path = alias.name if isinstance(node, ast.Import) else f"{node.module}.{alias.name}"
+                    first_part = full_path.split('.')[0]
+                    import_type = "stdlib" if first_part in stdlib_modules else "external"
+                    
+                    imports.append({
+                        "type": import_type,
+                        "source": full_path  # Changed from 'full_path' to 'source'
+                    })
 
         return {
             "name": module_name,
-            "path": str(file_path),
+            "path": str(py_file),
             "imports": imports,
-            "internal_deps": internal_deps,
+            "internal_deps": []
         }
-        
     except Exception as e:
-        logger.error(f"Error processing {file_path}: {str(e)}")
-        return None
+        logger.error(f"Failed to create module data: {str(e)}")
+        return {}
 
 
 def _is_excluded(path: Path, config: chewedConfig) -> bool:
     """Check if path matches any exclude patterns"""
-    # Convert exclude patterns to strings and filter invalid types
-    exclude_patterns = [
-        str(p) for p in config.exclude_patterns if isinstance(p, (str, Path))
-    ]
+    # Ensure patterns are strings
+    exclude_patterns = [str(p) for p in config.exclude_patterns]
     str_path = str(path.resolve())
-
+    
     return any(
         fnmatch.fnmatch(str_path, pattern)
         for pattern in exclude_patterns
-        if isinstance(pattern, str)
     )
 
 
 def _get_module_name(file_path: Path, package_root: Path) -> str:
-    relative_path = file_path.relative_to(package_root)
-    return str(relative_path.with_suffix("")).replace("/", ".").replace("src.", "")
+    """Derive valid Python module name from file path."""
+    try:
+        # Get relative path and convert to module notation
+        relative_path = file_path.relative_to(package_root)
+        module_parts = []
+        
+        # Split path into components
+        for part in relative_path.parts:
+            if part == "__init__.py":
+                continue
+            if part.endswith(".py"):
+                part = part[:-3]
+            module_parts.append(part)
+            
+        # Handle root package __init__.py case
+        if not module_parts:
+            return package_root.name if package_root.name != "src" else package_root.parent.name
+            
+        # Join parts with dots and clean up
+        module_name = ".".join(module_parts)
+        return module_name
+        
+    except ValueError as e:
+        logger.warning(f"Path {file_path} not relative to {package_root}: {e}")
+        return ""
 
 
 def _find_internal_deps(ast_tree: ast.Module, package_name: str) -> List[str]:
@@ -312,7 +315,7 @@ def _process_single_file(
             return None
             
         module_data = _create_module_data(py_file, package_path, config)
-        if module_data:
+        if module_data and "name" in module_data:
             return {
                 "name": module_data["name"],
                 "path": str(py_file),
