@@ -54,6 +54,25 @@
                 "Sync flake8 max-line-length with Black",
                 "Ignore E203/W503 for Black compatibility"
             ]
+        },
+        {
+            "pattern": "src/chewed/cli.py",
+            "hints": [
+                "Handle both local and PyPI package sources",
+                "Provide clear error messages",
+                "Log verbose information when requested",
+                "Ensure output directory is created",
+                "Use Click for robust CLI argument handling"
+            ]
+        },
+        {
+            "pattern": "src/chewed/package_discovery.py",
+            "hints": [
+                "Handle versioned and nested package structures",
+                "Support namespace package detection",
+                "Normalize package names consistently",
+                "Skip excluded paths during discovery"
+            ]
         }
     ]
 } 

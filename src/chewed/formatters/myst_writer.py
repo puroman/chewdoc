@@ -30,19 +30,23 @@ class MystWriter:
             self.config.max_example_lines = 15
 
     def generate(self, package_data: dict, output_path: Path) -> None:
+        """Enhanced generate method with comprehensive logging"""
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Write index first
         (output_path / "index.md").write_text(self._format_index(package_data))
 
         # Write module docs
-        for mod in package_data["modules"]:
+        for mod in package_data.get("modules", []):
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
             module_file = output_path / f"{module['name'].replace('.', '/')}.md"
             module_file.parent.mkdir(parents=True, exist_ok=True)
 
-            content = self._format_module_content(module)
-            module_file.write_text(content)
+            try:
+                content = self._format_module_content(module)
+                module_file.write_text(content)
+            except Exception as e:
+                self.logger.error(f"Error generating docs for module {module['name']}: {str(e)}")
 
     def _format_index(self, package_data: dict) -> str:
         """Generate package index content"""
@@ -274,23 +278,38 @@ class MystWriter:
             self.logger.warning(error_msg)
             return f"()  # {error_msg}"
 
-    def _format_usage_examples(self, examples: List[Dict]) -> str:
-        """Format usage examples with robust validation"""
+    def _validate_example(self, example: Any) -> Optional[Dict[str, str]]:
+        """Robust example validation with detailed logging"""
+        # Handle primitive types
+        if isinstance(example, (str, int, float, bool)):
+            return {"code": str(example)}
+        
+        # Handle dictionary examples
+        if isinstance(example, dict):
+            # Check for code/content
+            code = example.get("code") or example.get("content")
+            if code:
+                return {"code": str(code)}
+            
+            self.logger.warning(f"Skipping example: Missing 'code'/'content' field")
+            return None
+        
+        # Invalid example type
+        self.logger.warning(f"Skipping invalid example type: {type(example).__name__}")
+        return None
+
+    def _format_usage_examples(self, examples: List[Any]) -> str:
+        """Format usage examples with comprehensive validation"""
         valid_examples = []
         
         for example in examples:
-            try:
-                if self._validate_example(example):
-                    valid_examples.append(example['code'])
-            except Exception as e:
-                self.logger.warning(f"Error processing example: {str(e)}")
+            validated_example = self._validate_example(example)
+            if validated_example:
+                valid_examples.append(validated_example['code'])
+            else:
+                valid_examples.append(f"# Invalid example: {type(example).__name__}")
         
-        # Return formatted examples or default message
-        if valid_examples:
-            return "\n".join(valid_examples)
-        
-        self.logger.warning("No valid examples found")
-        return "No valid examples found"
+        return "\n".join(valid_examples) if valid_examples else "No valid examples found"
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -514,33 +533,6 @@ class MystWriter:
         role = module.get("role", "General purpose module")
         layer = module.get("architecture_layer", "Not specified")
         return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
-
-    def _validate_example(self, example: dict) -> bool:
-        """Validate and normalize example format"""
-        # Handle non-dictionary examples
-        if not isinstance(example, dict):
-            # Convert primitive types to string examples
-            if isinstance(example, (str, int, float, bool)):
-                example = {"code": str(example)}
-            else:
-                self.logger.warning(f"Skipping invalid example type: {type(example).__name__}")
-                return False
-        
-        # Handle legacy 'content' key
-        code_content = example.get("code") or example.get("content")
-        
-        # Validate code content
-        if not code_content:
-            self.logger.warning("Skipping example: Missing 'code'/'content' field")
-            return False
-        
-        # Normalize to string
-        if isinstance(code_content, list):
-            code_content = "\n".join(str(line) for line in code_content)
-        
-        # Update example with normalized code
-        example['code'] = str(code_content)
-        return True
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:

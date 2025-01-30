@@ -61,7 +61,7 @@ class chewedConfig(BaseModel):
     )
     module_discovery_patterns: List[str] = Field(
         default=["**/*.py", "!test_*.py", "!*/tests/*", "!*/_*"],
-        description="File patterns for module discovery (include/exclude)",
+        description="File patterns for module discovery (include/exclude)"
     )
     namespace_fallback: bool = Field(
         default=True, 
