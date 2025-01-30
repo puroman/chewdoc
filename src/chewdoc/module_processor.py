@@ -10,27 +10,35 @@ from chewdoc.ast_utils import extract_docstrings, extract_type_info
 logger = logging.getLogger(__name__)
 
 
-def process_modules(package_path: Path, config: ChewdocConfig) -> list[dict]:
-    """Process Python modules in package directory."""
+def process_modules(package_path: Path, config: ChewdocConfig) -> list:
+    """Find and process modules in package with init.py handling"""
     modules = []
-    for file_path in package_path.rglob("*.py"):
-        # Skip __init__.py files
-        if file_path.name == "__init__.py":
-            continue
+    
+    # Always include __init__.py if present
+    init_py = package_path / "__init__.py"
+    if init_py.exists():
+        modules.append({
+            "name": package_path.name,
+            "path": str(init_py),
+            "imports": [],
+            "internal_deps": []
+        })
 
-        if _is_excluded(file_path, config.exclude_patterns):
-            continue
+    # Existing module discovery logic
+    for py_file in package_path.glob("**/*.py"):
+        if _should_process(py_file, config):
+            modules.append(_process_single_file(py_file, package_path))
+    
+    return [m for m in modules if m is not None]
 
-        try:
-            module_data = _create_module_data(file_path, package_path, config)
-            if module_data:
-                modules.append(module_data)
-        except SyntaxError as e:
-            logger.warning(f"Skipping {file_path} due to syntax error: {e}")
-        except Exception as e:
-            logger.warning(f"Error processing {file_path}: {e}")
 
-    return modules
+def _should_process(path: Path, config: ChewdocConfig) -> bool:
+    """Check if file should be processed"""
+    return (
+        path.name != "__init__.py" and  # Handled separately
+        not _is_excluded(path, config) and
+        path.is_file()
+    )
 
 
 def _create_module_data(

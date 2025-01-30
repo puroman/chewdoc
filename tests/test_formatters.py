@@ -14,8 +14,11 @@ def test_myst_writer_basic(tmp_path):
     }
 
     writer.generate(package_info, tmp_path)
-    assert (tmp_path / "index.md").exists()
-    assert "## Modules" in (tmp_path / "index.md").read_text()
+    index_content = (tmp_path / "index.md").read_text()
+    
+    assert "testpkg Documentation" in index_content
+    assert "testmod" in index_content
+    assert "```{toctree}" in index_content
 
 
 def test_myst_writer_simple_module(tmp_path):
@@ -333,12 +336,17 @@ def test_format_function_with_ast_arguments():
     """Test function formatting with real AST arguments"""
     writer = MystWriter()
     func_ast = ast.parse("def test(a: int, b: str = '') -> bool: pass").body[0]
-
+    
     result = writer._format_function(
-        "test", {"args": func_ast.args, "returns": func_ast.returns}
+        "test", {
+            "args": func_ast.args,
+            "returns": func_ast.returns,
+            "doc": "Test function"
+        }
     )
-
+    
     assert "test(a: int, b: str = '') -> bool" in result
+    assert "Test function" in result
 
 
 def test_module_content_generation(tmp_path):
@@ -346,7 +354,7 @@ def test_module_content_generation(tmp_path):
     writer = MystWriter()
     module_data = {
         "name": "test_module",
-        "docstrings": {"module:1": "Test module documentation"},
+        "docstrings": {"module": "Test module documentation"},
         "imports": [
             {"name": "os", "full_path": "os", "source": ""},
             {"name": "sys", "full_path": "sys", "source": ""},
@@ -365,10 +373,11 @@ def test_module_content_generation(tmp_path):
     package_data = {"package": "testpkg", "modules": [module_data]}
 
     writer.generate(package_data, tmp_path)
-    test_file = tmp_path / "test.md"  # Use specific file path
-    assert test_file.exists()
+    test_file = tmp_path / "test_module.md"
     content = test_file.read_text()
+    
     assert "Test module documentation" in content
+    assert "### `test_func(arg1, arg2) -> str`" in content
 
 
 def test_minimal_module_formatting(tmp_path):
@@ -376,23 +385,17 @@ def test_minimal_module_formatting(tmp_path):
     writer = MystWriter()
     package_data = {
         "package": "testpkg",
-        "modules": [
-            {
-                "name": "core",
-                "type_info": {
-                    "functions": {
-                        "main": {"args": [], "returns": None, "doc": "Main entry point"}
-                    }
-                },
+        "modules": [{
+            "name": "core",
+            "type_info": {
+                "functions": {"main": {"args": [], "returns": None, "doc": "Main entry point"}}
             }
-        ],
+        }],
     }
 
     writer.generate(package_data, tmp_path)
     content = (tmp_path / "core.md").read_text()
-
+    
     assert "# Module: core" in content
-    assert "## Overview" in content
-    assert "## API Reference" in content
-    assert "### Functions" in content
-    assert "main" in content
+    assert "## Functions" in content
+    assert "### `main() -> None`" in content

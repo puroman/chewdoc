@@ -116,13 +116,14 @@ def test_analyze_empty_package(tmp_path):
     empty_pkg.mkdir()
     (empty_pkg / "__init__.py").touch()
 
-    with patch("chewdoc.core.process_modules") as mock_process:
-        mock_process.return_value = []
-        # Add config parameter
-        with pytest.raises(ValueError, match="No valid modules found"):
-            analyze_package(
-                source=str(empty_pkg), is_local=True, config=ChewdocConfig()
-            )
+    result = analyze_package(
+        source=str(empty_pkg), 
+        is_local=True, 
+        config=ChewdocConfig()
+    )
+    
+    assert len(result["modules"]) == 1
+    assert result["modules"][0]["name"] == "empty_pkg"
 
 
 def test_analyze_invalid_source():

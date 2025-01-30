@@ -28,33 +28,32 @@ class MystWriter:
         if not hasattr(self.config, "max_example_lines"):
             self.config.max_example_lines = 15
 
-    def generate(
-        self, package_data: Dict[str, Any], output_path: Path, verbose: bool = False
-    ) -> None:
-        """Generate documentation files"""
-        self.package_data = package_data
-        self.current_module = {}
-
-        logger.debug(f"Processing package data: {package_data}")  # Add debug logging
-
-        output_path.mkdir(parents=True, exist_ok=True)  # Ensure output directory exists
-
-        # Generate module files
+    def generate(self, package_data: dict, output_path: Path) -> None:
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Write index first
+        (output_path / "index.md").write_text(self._format_index(package_data))
+        
+        # Write module docs
         for mod in package_data["modules"]:
-            self.current_module = mod.copy()
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
-            logger.debug(f"Processing module: {module}")  # Add debug logging
+            module_file = output_path / f"{module['name'].replace('.', '/')}.md"
+            module_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            content = self._format_module_content(module)
+            module_file.write_text(content)
 
-            module_file = output_path / f"{module['name']}.md"  # Always create file in directory
-            try:
-                content = self._format_module(module)
-                logger.debug(
-                    f"Generated content length: {len(content)}"
-                )  # Add debug logging
-                module_file.write_text(content)
-            except Exception as e:
-                logger.error(f"Failed to write {module_file}: {str(e)}")
-                raise
+    def _format_index(self, package_data: dict) -> str:
+        """Generate package index content"""
+        content = [
+            f"# {package_data['package']} Documentation\n",
+            "```{toctree}\n:maxdepth: 2\n\n"
+        ]
+        for mod in package_data["modules"]:
+            module = mod if isinstance(mod, dict) else {"name": str(mod)}
+            content.append(f"{module['name'].replace('.', '/')}\n")
+        content.append("```")
+        return "\n".join(content)
 
     def _format_package_index(self, package_data: Dict[str, Any]) -> str:
         """Generate main package index with module links"""
@@ -74,27 +73,38 @@ class MystWriter:
         return "\n".join(content)
 
     def _format_module_content(self, module: dict) -> str:
-        """Format module docs with package context"""
-        output = []
-        try:
-            module = module.copy()
-            module.setdefault("type_info", {})
-            module.setdefault("examples", [])
-            module.setdefault("docstrings", {})
-            module.setdefault("internal_deps", [])  # Add default for dependencies
-            if functions := module["type_info"].get("functions"):
-                output.append("\n## Functions")
-                for func_name, func_info in functions.items():
-                    try:
-                        output.append(self._format_function(func_name, func_info))
-                    except Exception as e:
-                        output.append(
-                            f"## `{func_name}`\n\n*Error formatting function: {str(e)[:100]}*"
-                        )
-            return "\n".join(output)
-        except Exception as e:
-            logger.error(f"Failed to process module {module['name']}: {str(e)}")
-            raise
+        """Format module docs with fallback content"""
+        output = [
+            f"# Module: {module['name']}\n",
+            "```{py:module} " + module['name']
+        ]
+        
+        # Handle different docstring formats
+        docstrings = module.get("docstrings", {})
+        if "module" in docstrings:  # Direct module docstring
+            output.append(f"\n{docstrings['module']}")
+        elif "module:1" in docstrings:  # Legacy format
+            output.append(f"\n{docstrings['module:1']}")
+        else:
+            output.append("\nNo module docstring available")
+        
+        output.append("\n```\n")
+        output.append(self._format_role_section(module))
+        
+        # Add variables section
+        if variables := module.get("type_info", {}).get("variables"):
+            output.append("\n### Variables\n")
+            for var_name, var_value in variables.items():
+                value = var_value.get("value") if isinstance(var_value, dict) else var_value
+                output.append(f"- `{var_name}`: {value}")
+
+        # Add functions section
+        if functions := module.get("type_info", {}).get("functions"):
+            output.append("\n## Functions\n")
+            for func_name, func_info in functions.items():
+                output.append(self._format_function(func_name, func_info))
+        
+        return "\n".join(output)
 
     def _format_imports(self, imports: list, package: str) -> str:
         """Categorize imports with full path handling"""
@@ -461,13 +471,39 @@ class MystWriter:
             raise ValueError(f"Failed to format class {cls_name}: {str(e)}")
 
     def _format_function(self, func_name: str, func_info: dict) -> str:
-        return (
-            "```{{eval-auto}}\n"
-            "# --8<-- [start:example]\n"
-            f"{func_info.get('signature', '')}\n"
-            "# --8<-- [end:example]\n"
-            "```"
-        )
+        """Format function with AST node handling"""
+        try:
+            args = func_info.get("args", [])
+            returns = func_info.get("returns", "None")
+            doc = func_info.get("doc", "No docstring available")
+
+            # Handle AST nodes
+            if isinstance(args, ast.arguments):
+                arg_list = []
+                for arg in args.args:
+                    arg_name = arg.arg
+                    arg_type = (
+                        ast.unparse(arg.annotation) 
+                        if arg.annotation else "Any"
+                    )
+                    arg_list.append(f"{arg_name}: {arg_type}")
+                arg_str = ", ".join(arg_list)
+            elif isinstance(args, list):
+                arg_str = ", ".join(args)
+            else:
+                arg_str = "..."
+
+            # Handle return type
+            if isinstance(returns, ast.AST):
+                returns = ast.unparse(returns)
+            
+            return (
+                f"### `{func_name}({arg_str}) -> {returns}`\n\n"
+                f"{doc}\n\n"
+                "```{{eval-auto}}\n# --8<-- [start:example]\n\n# --8<-- [end:example]\n```\n"
+            )
+        except Exception as e:
+            return f"### `{func_name}()`\n\n*Error formatting function: {str(e)[:100]}*\n"
 
     def _handle_import_from(self, node: ast.ImportFrom) -> None:
         if (
@@ -484,6 +520,12 @@ class MystWriter:
             f"`{self._get_attr_source(node)}` "
             f"(from {self._get_module_name(node.value)})"
         )
+
+    def _format_role_section(self, module: dict) -> str:
+        """Generate role and architecture section"""
+        role = module.get("role", "General purpose module")
+        layer = module.get("architecture_layer", "Not specified")
+        return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:
