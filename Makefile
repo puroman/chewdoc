@@ -78,13 +78,13 @@ install-prod: venv
 install-dev: venv
 	$(call activate_venv)
 	@echo "Installing development dependencies..."
-	$(UV) pip install --python $(VENV)/bin/python -e .[dev]
+	$(UV) pip install --python .venv/bin/python -e .[dev]
 
-test: venv
+test tests: venv
 	$(call activate_venv)
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
-covtest-cov: venv
+test-coverage test-cov coverage: venv
 	$(call activate_venv)
 	$(PYTHON) -m pytest $(TEST_VERBOSITY) $(MARKER_OPTION) \
 		--cov=src \
@@ -93,11 +93,11 @@ covtest-cov: venv
 		$(TEST_PATH)
 
 test-html: COVERAGE_FORMAT=html
-test-html: test-cov
+test-html: test-coverage
 	@echo "Coverage report generated in htmlcov/index.html"
 
 test-xml: COVERAGE_FORMAT=xml
-test-xml: test-cov
+test-xml: test-coverage
 	@echo "Coverage report generated in coverage.xml"
 
 test-parallel: venv
@@ -110,12 +110,12 @@ test-watch: venv
 	$(call activate_venv)
 	$(PYTHON) -m pytest-watch -- $(TEST_VERBOSITY) $(MARKER_OPTION) $(TEST_PATH)
 
-doc docs: install-dev
+docs: install-dev
 	$(call activate_venv)
 	@echo "📚 Generating project documentation..."
 	@mkdir -p $(DOCS_DIR)
 	@echo "🕒 Timing documentation generation..."
-	@time $(PYTHON) -m chewed chew src/chewed/ --output $(DOCS_DIR)/ --local --verbose
+	@time python -m chewed.cli chew ./src --local -o docs/ --verbose
 	@echo "✅ Documentation generated at: $(DOCS_DIR)/"
 
 clean clear:

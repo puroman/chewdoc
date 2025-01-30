@@ -51,27 +51,43 @@ def _is_namespace_package(pkg_path: Path) -> bool:
     return False
 
 
-def find_python_packages(path: Path, config: chewedConfig) -> list:
-    """Find Python packages with configurable exclusion patterns"""
+def find_python_packages(package_path: Path, config: chewedConfig) -> List[Dict[str, str]]:
+    """Find Python packages with improved versioned path handling"""
     packages = []
-
-    # Match both regular and namespace packages
-    for p in path.glob("**/"):
-        if _is_package_dir(p, config):
-            try:
-                pkg_name = get_package_name(p)
-                if not _is_excluded(p, config):
-                    packages.append(
-                        {
-                            "name": pkg_name,
-                            "path": str(p),
-                            "is_namespace": _is_namespace_package(p),
-                        }
-                    )
-            except ValueError:
-                continue
-
+    
+    # Normalize path and handle versioned directories
+    package_path = package_path.resolve()
+    
+    # Check if the path itself is a package
+    if _is_package(package_path, config):
+        packages.append({
+            "name": _derive_package_name(package_path),
+            "path": str(package_path)
+        })
+    
+    # Recursive package discovery
+    for path in package_path.rglob("__init__.py"):
+        pkg_dir = path.parent
+        
+        # Skip excluded paths
+        if any(fnmatch.fnmatch(str(pkg_dir), pattern) for pattern in config.exclude_patterns):
+            continue
+        
+        # Handle versioned paths
+        pkg_name = _derive_package_name(pkg_dir)
+        packages.append({
+            "name": pkg_name,
+            "path": str(pkg_dir)
+        })
+    
     return packages
+
+
+def _derive_package_name(path: Path) -> str:
+    """Derive package name from path, handling versioned directories"""
+    # Remove version suffixes and normalize
+    name = path.name.split('-')[0].split('_')[0]
+    return re.sub(r'[.-]v?\d+.*', '', name).replace('-', '_').lower()
 
 
 def _is_package_dir(path: Path, config: chewedConfig) -> bool:

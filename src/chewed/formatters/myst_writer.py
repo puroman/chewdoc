@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from chewed.utils import (
     get_annotation,
     infer_responsibilities,
@@ -274,20 +274,23 @@ class MystWriter:
             self.logger.warning(error_msg)
             return f"()  # {error_msg}"
 
-    def _format_usage_examples(self, examples: list) -> str:
-        """Format examples with validation"""
-        output = []
-        for i, ex in enumerate(examples, 1):
-            if not self._validate_example(ex):
-                continue
+    def _format_usage_examples(self, examples: List[Dict]) -> str:
+        """Format usage examples with robust validation"""
+        valid_examples = []
+        
+        for example in examples:
             try:
-                content = ex["content"].strip()
-                if not content:
-                    raise ValueError("Empty example content")
-                output.append(f"### Example {i}\n```python\n{content}\n```")
+                if self._validate_example(example):
+                    valid_examples.append(example['code'])
             except Exception as e:
-                self.logger.warning(f"Skipping example {i}: {str(e)}")
-        return "\n\n".join(output) if output else "No valid examples found"
+                self.logger.warning(f"Error processing example: {str(e)}")
+        
+        # Return formatted examples or default message
+        if valid_examples:
+            return "\n".join(valid_examples)
+        
+        self.logger.warning("No valid examples found")
+        return "No valid examples found"
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""
@@ -513,28 +516,30 @@ class MystWriter:
         return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
 
     def _validate_example(self, example: dict) -> bool:
+        """Validate and normalize example format"""
+        # Handle non-dictionary examples
         if not isinstance(example, dict):
-            self.logger.warning("Skipping invalid example type: %s", type(example).__name__)
-            return False
+            # Convert primitive types to string examples
+            if isinstance(example, (str, int, float, bool)):
+                example = {"code": str(example)}
+            else:
+                self.logger.warning(f"Skipping invalid example type: {type(example).__name__}")
+                return False
         
-        # Handle both 'code' and legacy 'content' fields
+        # Handle legacy 'content' key
         code_content = example.get("code") or example.get("content")
+        
+        # Validate code content
         if not code_content:
             self.logger.warning("Skipping example: Missing 'code'/'content' field")
             return False
         
+        # Normalize to string
         if isinstance(code_content, list):
-            code_content = "\n".join(code_content)
-        elif not isinstance(code_content, str):
-            self.logger.warning(
-                "Skipping example '%s': Invalid content type %s",
-                example.get('name', 'unnamed'),
-                type(code_content).__name__
-            )
-            return False
+            code_content = "\n".join(str(line) for line in code_content)
         
-        # Normalize to 'code' key
-        example['code'] = code_content
+        # Update example with normalized code
+        example['code'] = str(code_content)
         return True
 
 

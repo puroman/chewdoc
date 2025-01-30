@@ -54,20 +54,44 @@ def analyze_package(
     """Main analysis entry point with proper error handling"""
     try:
         package_path = Path(source)
-        if not is_local:
-            package_path = _download_pypi_package(source, config.temp_dir)
+        
+        # Validate source path exists
+        if not package_path.exists():
+            raise ValueError(f"Source path does not exist: {source}")
 
         packages = find_python_packages(package_path, config)
         if not packages:
-            raise RuntimeError(f"No valid Python packages found in {source}")
+            # Use namespace package fallback if configured
+            if config.namespace_fallback:
+                packages = [{
+                    "name": package_path.name,
+                    "path": str(package_path)
+                }]
+            else:
+                raise RuntimeError(f"No valid Python packages found in {source}")
 
         # Process modules for each package
         all_modules = []
         for pkg in packages:
-            modules = process_modules(Path(pkg["path"]), config)
-            if not modules:
-                raise RuntimeError(f"Package {pkg['name']} contains no valid modules")
-            all_modules.extend(modules)
+            try:
+                modules = process_modules(Path(pkg["path"]), config)
+                
+                # If no modules found, create a minimal module for namespace packages
+                if not modules and config.namespace_fallback:
+                    modules = [{
+                        "name": pkg["name"],
+                        "path": pkg["path"],
+                        "imports": [],
+                        "internal_deps": []
+                    }]
+                
+                if not modules:
+                    raise RuntimeError(f"Package {pkg['name']} contains no valid modules")
+                
+                all_modules.extend(modules)
+            except Exception as module_error:
+                if not config.namespace_fallback:
+                    raise
 
         return {
             "package": get_package_name(package_path),
@@ -79,6 +103,9 @@ def analyze_package(
             ),
             "config": config.model_dump(),
         }
+    except ValueError as ve:
+        # Specific handling for path not existing
+        raise ValueError(str(ve))
     except Exception as e:
         logger.error(f"Package analysis failed: {str(e)}")
         raise RuntimeError(f"Package analysis failed: {str(e)}") from e
