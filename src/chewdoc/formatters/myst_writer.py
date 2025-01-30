@@ -474,36 +474,43 @@ class MystWriter:
         """Format function with AST node handling"""
         try:
             args = func_info.get("args", [])
+            # Validate arguments type before processing
+            if not isinstance(args, (ast.arguments, list)):
+                raise TypeError(f"Invalid arguments type: {type(args).__name__}")
+            
             returns = func_info.get("returns", "None")
             doc = func_info.get("doc", "No docstring available")
 
-            # Handle AST nodes
+            arg_list = []
             if isinstance(args, ast.arguments):
-                arg_list = []
-                for arg in args.args:
+                # Handle positional arguments with defaults
+                defaults = [None] * (len(args.args) - len(args.defaults)) + list(args.defaults)
+                for arg, default in zip(args.args, defaults):
                     arg_name = arg.arg
-                    arg_type = (
-                        ast.unparse(arg.annotation) 
-                        if arg.annotation else "Any"
-                    )
-                    arg_list.append(f"{arg_name}: {arg_type}")
+                    arg_type = ast.unparse(arg.annotation) if arg.annotation else "Any"
+                    default_str = f" = {ast.unparse(default)}" if default else ""
+                    arg_list.append(f"{arg_name}: {arg_type}{default_str}")
+                    
+                # Handle *args and **kwargs
+                if args.vararg:
+                    arg_list.append(f"*{args.vararg.arg}")
+                if args.kwarg:
+                    arg_list.append(f"**{args.kwarg.arg}")
+                    
                 arg_str = ", ".join(arg_list)
             elif isinstance(args, list):
                 arg_str = ", ".join(args)
             else:
                 arg_str = "..."
-
-            # Handle return type
-            if isinstance(returns, ast.AST):
-                returns = ast.unparse(returns)
             
+            return_type = ast.unparse(returns) if isinstance(returns, ast.AST) else returns
             return (
-                f"### `{func_name}({arg_str}) -> {returns}`\n\n"
+                f"### `{func_name}({arg_str}) -> {return_type}`\n\n"
                 f"{doc}\n\n"
                 "```{{eval-auto}}\n# --8<-- [start:example]\n\n# --8<-- [end:example]\n```\n"
             )
         except Exception as e:
-            return f"### `{func_name}()`\n\n*Error formatting function: {str(e)[:100]}*\n"
+            return f"### `{func_name}()`\n\n*Error: {str(e)[:100]}*\n"
 
     def _handle_import_from(self, node: ast.ImportFrom) -> None:
         if (

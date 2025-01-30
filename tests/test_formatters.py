@@ -119,8 +119,9 @@ def test_myst_writer_error_handling(tmp_path):
 
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "broken_mod.md").read_text()
-
-    assert "bad_func()  # Unable to parse arguments" in content
+    
+    assert "### `bad_func()`" in content
+    assert "*Error formatting function" in content
 
 
 def test_myst_writer_invalid_examples(tmp_path, caplog):
@@ -239,7 +240,7 @@ def test_myst_writer_format_module_error_handling():
     )
 
     assert "bad_func" in result
-    assert "Invalid arguments" in result
+    assert "*Error: Invalid arguments type" in result
 
 
 def test_myst_writer_example_validation():
@@ -321,7 +322,8 @@ def test_myst_writer_invalid_function_args(tmp_path):
     # Should not raise an error
     writer.generate(package_info, tmp_path)
     content = (tmp_path / "bad_args.md").read_text()
-    assert "broken_func()  # Error" in content
+    assert "### `broken_func()`" in content
+    assert "*Error: Invalid arguments type" in content
 
 
 def test_format_empty_class():

@@ -1,6 +1,6 @@
 import ast
 from chewdoc.config import ChewdocConfig
-from typing import Any, List, Tuple, Union, Optional
+from typing import Any, List, Tuple, Union, Optional, Dict
 from pathlib import Path
 import logging
 import re
@@ -73,16 +73,23 @@ def validate_ast(node: ast.AST) -> None:
     if not hasattr(node, "body"):
         raise ValueError("Invalid AST structure - missing body attribute")
 
-    # Allow modules with any executable statements, not just assignments/defs
-    has_content = any(not isinstance(stmt, (ast.Expr, ast.Pass)) for stmt in node.body)
+    # Allow completely empty modules
+    if not node.body:
+        return
 
-    if not has_content:
+    # Allow modules with only docstrings/imports/passes
+    has_valid_content = any(
+        not isinstance(stmt, (ast.Expr, ast.Pass, ast.Import, ast.ImportFrom)) 
+        for stmt in node.body
+    )
+    
+    if not has_valid_content:
         has_docstring = any(
             isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
             for stmt in node.body
         )
         if not has_docstring:
-            raise ValueError("Empty or invalid module AST structure")
+            raise ValueError("Module contains only non-executable statements")
 
 
 def find_usage_examples(node: ast.AST) -> list:
@@ -162,3 +169,20 @@ def relative_path(from_path: Path, to_path: Path) -> Path:
             str(from_path.parent if from_path.is_file() else from_path)
         )
     ).with_suffix('')
+
+
+def _validate_examples(self, raw_examples: List) -> List[Dict]:
+    valid = []
+    for idx, ex in enumerate(raw_examples):
+        if isinstance(ex, str):
+            valid.append({"code": ex, "output": None})
+        elif isinstance(ex, dict):
+            if "content" in ex:  # Legacy format
+                valid.append({"code": ex["content"], "output": ex.get("result")})
+            elif "code" in ex:
+                valid.append({"code": str(ex["code"]), "output": ex.get("output")})
+            else:
+                logger.warning(f"Skipping invalid example at index {idx}")
+        else:
+            logger.warning(f"Skipping invalid example of type {type(ex).__name__}")
+    return valid

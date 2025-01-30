@@ -16,6 +16,7 @@ from .package_discovery import (
 )
 import ast
 import tempfile
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,15 @@ def analyze_package(
 
 def _derive_package_name(package_path: Path) -> str:
     """Fallback package name derivation from path"""
-    path_parts = package_path.resolve().parts
-    for part in reversed(path_parts):
-        if part in ("src", "site-packages", "dist-packages"):
-            continue
-        if "-" in part:  # Handle versioned directories like my-pkg-1.2.3
-            return part.split("-")[0]
-        return part
-    return "unknown-package"
+    try:
+        path_parts = package_path.resolve().parts
+        for part in reversed(path_parts):
+            if part in ("src", "site-packages", "dist-packages"):
+                continue
+            if "-" in part and part[0].isalpha():
+                return re.sub(r"[-_]\d+.*", "", part).replace("_", "-")
+            return part.replace("_", "-")
+        return "unknown-package"
+    except Exception as e:
+        logger.warning(f"Package name derivation failed: {str(e)}")
+        return "unknown-package"

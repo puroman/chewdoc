@@ -27,7 +27,10 @@ def process_modules(package_path: Path, config: ChewdocConfig) -> list:
     # Existing module discovery logic
     for py_file in package_path.glob("**/*.py"):
         if _should_process(py_file, config):
-            modules.append(_process_single_file(py_file, package_path))
+            try:
+                modules.append(_process_single_file(py_file, package_path))
+            except Exception as e:
+                logger.warning(f"Skipping {py_file}: {str(e)}")
     
     return [m for m in modules if m is not None]
 

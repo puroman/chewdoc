@@ -71,6 +71,9 @@ def test_get_annotation_complex():
 def test_validate_ast_with_errors():
     """Test AST validation with empty module"""
     tree = ast.parse("")
-    with pytest.raises(ValueError) as exc_info:
-        validate_ast(tree)
-    assert "Empty or invalid module" in str(exc_info.value)
+    # Should NOT raise for empty modules
+    validate_ast(tree)  
+    # Test with actually invalid content
+    invalid_tree = ast.parse("123 = 'invalid'")  
+    with pytest.raises(ValueError):
+        validate_ast(invalid_tree)
