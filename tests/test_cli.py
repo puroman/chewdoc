@@ -103,7 +103,7 @@ def test_cli_verbose_output(tmp_path):
     runner = CliRunner()
     mock_data = minimal_valid_package()
     mock_data["modules"][0]["examples"] = [{"code": "test = 123"}]
-    
+
     with patch("chewed.cli.analyze_package", return_value=mock_data):
         result = runner.invoke(
             cli, ["chew", str(tmp_path), "--local", "-o", "docs", "-v"]

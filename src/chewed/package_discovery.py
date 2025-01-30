@@ -12,14 +12,14 @@ def get_package_name(package_path: Path) -> str:
 
     # Clean directory name
     dir_name = package_path.name
-    
+
     # Check parent directory if current dir is versioned
     parent = package_path.parent
     if version_pattern.search(dir_name) and parent.name != package_path.name:
         parent_clean = re.sub(version_pattern, "", parent.name)
         if parent_clean:
             return re.sub(r"[-_.]+", "_", parent_clean).lower()
-    
+
     # Original cleaning logic
     clean_name = re.sub(version_pattern, "", dir_name)
     clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
@@ -52,33 +52,37 @@ def _is_namespace_package(pkg_path: Path) -> bool:
     return False
 
 
-def find_python_packages(package_path: Path, config: chewedConfig) -> List[Dict[str, str]]:
+def find_python_packages(
+    package_path: Path, config: chewedConfig
+) -> List[Dict[str, str]]:
     """Find Python packages with improved path handling"""
     packages = []
-    
+
     # Handle root package first
     if _is_package(package_path, config):
-        packages.append({
-            "name": _derive_package_name(package_path),
-            "path": str(package_path.resolve())
-        })
-    
+        packages.append(
+            {
+                "name": _derive_package_name(package_path),
+                "path": str(package_path.resolve()),
+            }
+        )
+
     # Recursive discovery with proper path resolution
     for path in package_path.resolve().rglob("__init__.py"):
         pkg_dir = path.parent
-        
+
         # Skip excluded paths using resolved paths
         resolved_pkg = pkg_dir.resolve()
-        if any(fnmatch.fnmatch(str(resolved_pkg), pattern) for pattern in config.exclude_patterns):
+        if any(
+            fnmatch.fnmatch(str(resolved_pkg), pattern)
+            for pattern in config.exclude_patterns
+        ):
             continue
-        
+
         # Handle versioned paths and nested packages
         pkg_name = _derive_nested_package_name(resolved_pkg, package_path.resolve())
-        packages.append({
-            "name": pkg_name,
-            "path": str(resolved_pkg)
-        })
-    
+        packages.append({"name": pkg_name, "path": str(resolved_pkg)})
+
     return packages
 
 
@@ -87,13 +91,13 @@ def _derive_nested_package_name(pkg_dir: Path, root_path: Path) -> str:
     try:
         # Compute relative path from root using resolved paths
         relative_path = pkg_dir.relative_to(root_path.resolve())
-        
+
         # Convert path to package name
         pkg_name = ".".join(relative_path.parts)
-        
+
         # Remove version suffixes and normalize
-        pkg_name = re.sub(r'[-_]v?\d+.*', '', pkg_name)
-        
+        pkg_name = re.sub(r"[-_]v?\d+.*", "", pkg_name)
+
         return pkg_name.lower()
     except ValueError:
         return _derive_package_name(pkg_dir)
@@ -102,14 +106,14 @@ def _derive_nested_package_name(pkg_dir: Path, root_path: Path) -> str:
 def _derive_package_name(path: Path) -> str:
     """Derive package name from path, handling versioned directories"""
     # Remove version suffixes and normalize
-    name = path.name.split('-')[0].split('_')[0]
-    clean_name = re.sub(r'[.-]v?\d+.*', '', name).replace('-', '_').lower()
-    
+    name = path.name.split("-")[0].split("_")[0]
+    clean_name = re.sub(r"[.-]v?\d+.*", "", name).replace("-", "_").lower()
+
     # Handle special case directories
-    if clean_name in ['src', 'lib', 'site-packages', 'dist-packages']:
+    if clean_name in ["src", "lib", "site-packages", "dist-packages"]:
         parent_name = path.parent.name
-        clean_name = re.sub(r'[.-]v?\d+.*', '', parent_name).replace('-', '_').lower()
-    
+        clean_name = re.sub(r"[.-]v?\d+.*", "", parent_name).replace("-", "_").lower()
+
     return clean_name or "unknown_package"
 
 
@@ -148,7 +152,7 @@ def _is_package(path: Path, config: chewedConfig) -> bool:
     # Check for __init__.py if namespace packages are not allowed
     if not config.allow_namespace_packages:
         return (path / "__init__.py").exists()
-    
+
     # For namespace packages, check for __init__.py or allow empty directories
     init_py = path / "__init__.py"
     return init_py.exists() or config.namespace_fallback

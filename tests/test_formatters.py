@@ -134,8 +134,8 @@ def test_myst_writer_invalid_examples(tmp_path, caplog):
                 "name": "bad_examples",
                 "examples": [
                     ["invalid list example"],  # Example 1 (list)
-                    {"type": "pytest"},        # Example 2 (no code)
-                    42                         # Example 3 (invalid type)
+                    {"type": "pytest"},  # Example 2 (no code)
+                    42,  # Example 3 (invalid type)
                 ],
             }
         ],
@@ -248,7 +248,7 @@ def test_myst_writer_example_validation():
     """Test example formatting with invalid entries"""
     writer = MystWriter()
     examples = [{"invalid": "structure"}, 12345, {"code": "valid = True"}]
-    
+
     result = writer._format_usage_examples(examples)
     assert "valid = True" in result
     assert "Invalid example" in result
@@ -421,3 +421,33 @@ def test_validate_ast_with_errors():
     )
     with pytest.raises(ValueError):
         validate_ast(invalid_tree)
+
+
+def test_myst_writer_path_sanitization(tmp_path):
+    """Test MystWriter handles special characters in module names"""
+    from chewed.formatters.myst_writer import MystWriter
+    from chewed.config import chewedConfig
+
+    writer = MystWriter(chewedConfig())
+    test_data = {
+        "package": "test_pkg",
+        "modules": [
+            {"name": "valid.module"},
+            {"name": "../invalid/path"},
+            {"name": "weird!chars"},
+        ],
+    }
+
+    output_dir = tmp_path / "docs"
+    writer.generate(test_data, output_dir)
+
+    # Verify generated files
+    valid_path = output_dir / "valid/module.md"
+    invalid_path = output_dir / "invalid/path.md"
+    parent_dir_path = output_dir.parent / "invalid.md"
+    weird_path = output_dir / "weird!chars.md"
+
+    assert valid_path.exists()
+    assert not invalid_path.exists()  # Should be sanitized
+    assert not parent_dir_path.exists()  # Should prevent path traversal
+    assert weird_path.exists()  # Should preserve characters but be safe

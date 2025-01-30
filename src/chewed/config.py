@@ -18,7 +18,7 @@ try:
     import tomllib
 except ModuleNotFoundError:
     # Fallback for Python <3.11
-    import tomli as tomllib # type: ignore
+    import tomli as tomllib  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -61,15 +61,14 @@ class chewedConfig(BaseModel):
     )
     module_discovery_patterns: List[str] = Field(
         default=["**/*.py", "!test_*.py", "!*/tests/*", "!*/_*"],
-        description="File patterns for module discovery (include/exclude)"
+        description="File patterns for module discovery (include/exclude)",
     )
     namespace_fallback: bool = Field(
-        default=True, 
-        description="Create minimal documentation for empty or namespace packages"
+        default=True,
+        description="Create minimal documentation for empty or namespace packages",
     )
     allow_empty_packages: bool = Field(
-        default=True, 
-        description="Allow processing of packages with no modules"
+        default=True, description="Allow processing of packages with no modules"
     )
 
     model_config = ConfigDict(extra="forbid")

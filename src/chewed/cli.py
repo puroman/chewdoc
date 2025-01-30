@@ -12,11 +12,16 @@ from chewed._version import __version__
 
 logger = logging.getLogger(__name__)
 
+
 @click.command()
-@click.argument('source', required=True, type=click.Path(exists=False))
-@click.option('--output', '-o', default='docs', help='Output directory for documentation')
-@click.option('--local/--pypi', default=True, help='Source is local package or PyPI package')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+@click.argument("source", required=True, type=click.Path(exists=False))
+@click.option(
+    "--output", "-o", default="docs", help="Output directory for documentation"
+)
+@click.option(
+    "--local/--pypi", default=True, help="Source is local package or PyPI package"
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.version_option(__version__, prog_name="chewed")
 def cli(source: str, output: str, local: bool, verbose: bool):
     """Generate LLM-optimized documentation for Python packages."""
@@ -24,7 +29,7 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         # Configure logging
         logging.basicConfig(
             level=logging.INFO if verbose else logging.WARNING,
-            format='%(levelname)s: %(message)s'
+            format="%(levelname)s: %(message)s",
         )
 
         # Resolve output path
@@ -32,7 +37,7 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Handle special case for Makefile documentation generation
-        if source == './src':
+        if source == "./src":
             source = os.path.abspath(source)
 
         # Validate source path for local packages
@@ -52,10 +57,7 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         # Analyze package
         config = chewedConfig()
         package_info = analyze_package(
-            source=str(source_path), 
-            is_local=local, 
-            config=config, 
-            verbose=verbose
+            source=str(source_path), is_local=local, config=config, verbose=verbose
         )
 
         # Generate documentation
@@ -64,8 +66,7 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         # Log statistics
         if verbose:
             examples_count = sum(
-                len(mod.get('examples', [])) 
-                for mod in package_info.get('modules', [])
+                len(mod.get("examples", [])) for mod in package_info.get("modules", [])
             )
             logger.info(f"📋 Found {examples_count} usage examples")
 
@@ -74,8 +75,10 @@ def cli(source: str, output: str, local: bool, verbose: bool):
         click.echo(f"Error: {str(e)}", err=True)
         raise click.Abort()
 
+
 def main():
     cli(prog_name="chew")
+
 
 if __name__ == "__main__":
     main()

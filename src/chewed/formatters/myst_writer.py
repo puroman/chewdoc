@@ -30,23 +30,37 @@ class MystWriter:
             self.config.max_example_lines = 15
 
     def generate(self, package_data: dict, output_path: Path) -> None:
-        """Enhanced generate method with comprehensive logging"""
+        """Generate documentation with proper path handling"""
+        output_path = output_path.resolve()
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Write index first
-        (output_path / "index.md").write_text(self._format_index(package_data))
+        index_path = output_path / "index.md"
+        index_path.write_text(self._format_index(package_data))
 
-        # Write module docs
+        # Process modules with path validation
         for mod in package_data.get("modules", []):
             module = mod if isinstance(mod, dict) else {"name": str(mod)}
-            module_file = output_path / f"{module['name'].replace('.', '/')}.md"
+            module_name = module.get("name", "unknown")
+
+            # Sanitize module path components
+            safe_path = module_name.replace(".", "/").lstrip("/")
+            safe_path = safe_path.replace(
+                "..", ""
+            )  # Remove parent directory references
+            module_file = output_path / f"{safe_path}.md"
+
+            # Ensure parent directory exists
             module_file.parent.mkdir(parents=True, exist_ok=True)
 
             try:
                 content = self._format_module_content(module)
                 module_file.write_text(content)
             except Exception as e:
-                self.logger.error(f"Error generating docs for module {module['name']}: {str(e)}")
+                self.logger.error(
+                    f"Error generating docs for module {module_name}: {str(e)}"
+                )
+                continue
 
     def _format_index(self, package_data: dict) -> str:
         """Generate package index content"""
@@ -283,17 +297,17 @@ class MystWriter:
         # Handle primitive types
         if isinstance(example, (str, int, float, bool)):
             return {"code": str(example)}
-        
+
         # Handle dictionary examples
         if isinstance(example, dict):
             # Check for code/content
             code = example.get("code") or example.get("content")
             if code:
                 return {"code": str(code)}
-            
+
             self.logger.warning(f"Skipping example: Missing 'code'/'content' field")
             return None
-        
+
         # Invalid example type
         self.logger.warning(f"Skipping invalid example type: {type(example).__name__}")
         return None
@@ -301,15 +315,17 @@ class MystWriter:
     def _format_usage_examples(self, examples: List[Any]) -> str:
         """Format usage examples with comprehensive validation"""
         valid_examples = []
-        
+
         for example in examples:
             validated_example = self._validate_example(example)
             if validated_example:
-                valid_examples.append(validated_example['code'])
+                valid_examples.append(validated_example["code"])
             else:
                 valid_examples.append(f"# Invalid example: {type(example).__name__}")
-        
-        return "\n".join(valid_examples) if valid_examples else "No valid examples found"
+
+        return (
+            "\n".join(valid_examples) if valid_examples else "No valid examples found"
+        )
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:
         """Enhanced docstring extraction with context tracking"""

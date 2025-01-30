@@ -54,7 +54,7 @@ def analyze_package(
     """Main analysis entry point with proper error handling"""
     try:
         package_path = Path(source)
-        
+
         # Validate source path exists
         if not package_path.exists():
             raise ValueError(f"Source path does not exist: {source}")
@@ -63,10 +63,7 @@ def analyze_package(
         if not packages:
             # Use namespace package fallback if configured
             if config.namespace_fallback:
-                packages = [{
-                    "name": package_path.name,
-                    "path": str(package_path)
-                }]
+                packages = [{"name": package_path.name, "path": str(package_path)}]
             else:
                 raise RuntimeError(f"No valid Python packages found in {source}")
 
@@ -75,19 +72,23 @@ def analyze_package(
         for pkg in packages:
             try:
                 modules = process_modules(Path(pkg["path"]), config)
-                
+
                 # If no modules found, create a minimal module for namespace packages
                 if not modules and config.namespace_fallback:
-                    modules = [{
-                        "name": pkg["name"],
-                        "path": pkg["path"],
-                        "imports": [],
-                        "internal_deps": []
-                    }]
-                
+                    modules = [
+                        {
+                            "name": pkg["name"],
+                            "path": pkg["path"],
+                            "imports": [],
+                            "internal_deps": [],
+                        }
+                    ]
+
                 if not modules:
-                    raise RuntimeError(f"Package {pkg['name']} contains no valid modules")
-                
+                    raise RuntimeError(
+                        f"Package {pkg['name']} contains no valid modules"
+                    )
+
                 all_modules.extend(modules)
             except Exception as module_error:
                 if not config.namespace_fallback:
@@ -99,7 +100,7 @@ def analyze_package(
             "metadata": get_package_metadata(
                 source=str(package_path.resolve()),
                 is_local=is_local,
-                version=getattr(config, "version", "0.0.0")
+                version=getattr(config, "version", "0.0.0"),
             ),
             "config": config.model_dump(),
         }

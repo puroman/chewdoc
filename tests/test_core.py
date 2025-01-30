@@ -219,9 +219,9 @@ def test_find_python_packages_edge_cases(tmp_path):
 
     config = chewedConfig()
     packages = find_python_packages(tmp_path, config)
-    assert any(p["name"] == "pkg.sub" for p in packages), (
-        f"Expected pkg.sub in {[p['name'] for p in packages]}"
-    )
+    assert any(
+        p["name"] == "pkg.sub" for p in packages
+    ), f"Expected pkg.sub in {[p['name'] for p in packages]}"
 
 
 def test_example_processing():
