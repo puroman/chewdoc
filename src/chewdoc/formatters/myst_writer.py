@@ -465,18 +465,14 @@ class MystWriter:
         except Exception as e:
             raise ValueError(f"Failed to format class {cls_name}: {str(e)}")
 
-    def _format_function(self, func_name: str, func_data: dict) -> str:
-        try:
-            signature = self._format_function_signature(func_data)
-            return (
-                f"### `{func_name}{signature}`\n\n"
-                f"```{{py:function}} {func_name}{signature}\n"
-                f"{func_data.get('doc', 'No docstring available')}\n"
-                "```\n"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to format function {func_name}: {e}")
-            return f"## `{func_name}()`\n\n*Error formatting signature: {str(e)}*"
+    def _format_function(self, func_name: str, func_info: dict) -> str:
+        return (
+            f"### `{func_name}`\n\n"
+            f"**Signature:** `{func_info.get('signature', '')}`\n\n"
+            f"{func_info.get('docstring', '')}\n\n"
+            "#### Examples\n"
+            "\n".join(self._format_example(ex) for ex in func_info.get('examples', []))
+        )
 
 
 def generate_docs(package_info: dict, output_path: Path) -> None:

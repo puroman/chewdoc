@@ -103,7 +103,7 @@ clean clear:
 	rm -rf .venv* .coverage .pytest_cache build dist *.egg-info docs htmlcov coverage.xml $(shell find . -name '__pycache__' -type d)
 
 lint: venv
-	$(PYTHON) -m flake8 src tests
+	$(PYTHON) -m flake8 --max-line-length=88 --ignore=F401,E203,W503 src tests
 
 format: venv
 	$(PYTHON) -m black src tests

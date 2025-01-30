@@ -114,7 +114,7 @@ def load_config(path: Optional[Path] = None) -> ChewdocConfig:
             raw_examples = config_data.get("examples", [])
             if not isinstance(raw_examples, list):
                 logger.error(
-                    f"❌ Config error: examples must be a list (got {type(raw_examples).__name__})"
+                    f"❌ Config error: examples must be list (got {type(raw_examples).__name__})"
                 )
                 raw_examples = []
 

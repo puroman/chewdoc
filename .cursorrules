@@ -46,6 +46,14 @@
                 "Keep entry point simple - delegate to CLI module",
                 "Verify argument consistency between click decorators and function params"
             ]
+        },
+        {
+            "pattern": "pyproject.toml",
+            "hints": [
+                "Keep Black line-length at 88",
+                "Sync flake8 max-line-length with Black",
+                "Ignore E203/W503 for Black compatibility"
+            ]
         }
     ]
 } 

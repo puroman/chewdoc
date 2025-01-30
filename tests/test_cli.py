@@ -12,7 +12,7 @@ def test_cli_local_package(tmp_path):
     runner = CliRunner()
     with patch("chewdoc.cli.analyze_package") as mock_analyze, patch(
         "pathlib.Path.exists"
-    ) as mock_exists, patch("chewdoc.cli.generate_docs") as mock_generate:
+    ) as mock_exists, patch("chewdoc.cli.generate_docs") as _:
         mock_exists.return_value = True
         mock_analyze.return_value = {
             "name": "testpkg",

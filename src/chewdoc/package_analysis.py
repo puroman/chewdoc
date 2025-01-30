@@ -2,7 +2,7 @@
 from pathlib import Path
 from datetime import datetime
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from .module_processor import process_modules
 from .metadata import get_package_metadata
 from .relationships import analyze_relationships
@@ -14,15 +14,17 @@ from .package_discovery import (
     get_package_name,
     _is_namespace_package,
 )
+import ast
+import tempfile
 
 logger = logging.getLogger(__name__)
 
 
 def analyze_package(
     source: str,
+    version: Optional[str] = None,
     is_local: bool = True,
-    version: str | None = None,
-    config: ChewdocConfig | None = None,
+    config: ChewdocConfig = ChewdocConfig(),
     verbose: bool = False,
 ) -> dict[str, Any]:
     """Analyze Python package and extract documentation metadata."""
@@ -37,14 +39,12 @@ def analyze_package(
     if verbose and (start := datetime.now()):
         logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])
 
-    config = config or ChewdocConfig()
     try:
         if verbose:
             logger.info("🔍 Fetching package metadata...")
         package_info = get_package_metadata(source, version, is_local)
         package_info.setdefault("python_requires", ">=3.6")
         package_info.setdefault("license", "Proprietary")
-        package_path = path if is_local else get_package_path(path, is_local)
         package_name = package_info["package"]
 
         if verbose:
