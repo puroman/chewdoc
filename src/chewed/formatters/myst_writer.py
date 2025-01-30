@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 class MystWriter:
     def __init__(self, config: Optional[chewedConfig] = None):
         self.config = config or chewedConfig()
+        self.logger = logging.getLogger(__name__)
         self.package_data = {}
         self.current_module = {}  # Initialize here instead of in generate()
         # Set default if not present in config
@@ -113,7 +114,7 @@ class MystWriter:
             
             return "\n".join(output)
         except Exception as e:
-            logger.error(f"Error formatting module {module['name']}: {str(e)}")
+            self.logger.error(f"Error formatting module {module['name']}: {str(e)}")
             return f"# Module: {module['name']}\n\nError generating documentation"
 
     def _format_imports(self, imports: list, package: str) -> str:
@@ -266,7 +267,7 @@ class MystWriter:
 
         except Exception as e:
             error_msg = f"Error formatting signature: {str(e)[:100]}"
-            logger.warning(error_msg)
+            self.logger.warning(error_msg)
             return f"()  # {error_msg}"
 
     def _format_usage_examples(self, examples: list) -> str:
@@ -313,7 +314,7 @@ class MystWriter:
     def _format_module(self, module: dict) -> str:
         """Format a module's documentation"""
         try:
-            logger.debug(
+            self.logger.debug(
                 f"Module data for {module.get('name')}: {module}"
             )  # Add debug logging
 
@@ -510,14 +511,20 @@ class MystWriter:
         return f"\n- **Role**: {role}\n- **Architecture Layer**: {layer}\n"
 
     def _validate_example(self, example: dict) -> bool:
-        required = ['name', 'content', 'type']
-        if not all(key in example for key in required):
-            self.logger.warning(f"Skipping example {example.get('name', 'unnamed')}: Missing required fields")
+        if not isinstance(example, dict):
+            self.logger.warning("Skipping invalid example type: %s", type(example).__name__)
             return False
         
-        # Add type check for content
+        if 'content' not in example:
+            self.logger.warning("Skipping example: Missing 'content' field")
+            return False
+        
         if not isinstance(example['content'], str):
-            self.logger.warning(f"Skipping example {example['name']}: Invalid content type {type(example['content']).__name__}")
+            self.logger.warning(
+                "Skipping example '%s': Invalid content type %s",
+                example.get('name', 'unnamed'),
+                type(example['content']).__name__
+            )
             return False
         
         return True

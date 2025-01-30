@@ -14,8 +14,8 @@ def get_package_name(package_path: Path) -> str:
     clean_name = re.sub(version_pattern, "", dir_name)
     clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()
     
-    # Fallback to parent directory if needed
-    if not clean_name or clean_name in ("src", "lib"):
+    # Handle parent directory if current name is generic
+    if clean_name in ("src", "lib", "site-packages", "dist-packages"):
         parent_name = package_path.parent.name
         clean_name = re.sub(version_pattern, "", parent_name)
         clean_name = re.sub(r"[-_.]+", "_", clean_name).lower()

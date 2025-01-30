@@ -78,7 +78,7 @@ def analyze_package(
             "metadata": get_package_metadata(
                 package_path=package_path,
                 is_local=is_local,
-                version=config.get("version", "0.0.0")  # Default version
+                version=getattr(config, "version", "0.0.0")
             ),
             "config": config.dict()
         }
