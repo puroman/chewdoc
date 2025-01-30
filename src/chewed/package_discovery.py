@@ -1,9 +1,12 @@
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 from .config import chewedConfig
 import fnmatch
 import re
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_package_name(package_path: Path) -> str:
@@ -52,36 +55,55 @@ def _is_namespace_package(pkg_path: Path) -> bool:
     return False
 
 
-def find_python_packages(
-    package_path: Path, config: chewedConfig
-) -> List[Dict[str, str]]:
-    """Find Python packages with improved path handling"""
+def find_python_packages(root_path: Union[str, Path], config: chewedConfig) -> List[Dict]:
+    """Find Python packages in the given directory."""
+    root_path = Path(root_path).resolve()  # Make sure we have an absolute path
+    if not root_path.exists():
+        raise ValueError(f"Path does not exist: {root_path}")
+
     packages = []
+    logger.info(f"Scanning for Python files in {root_path}")
 
-    # Handle root package first
-    if _is_package(package_path, config):
-        packages.append(
-            {
-                "name": _derive_package_name(package_path),
-                "path": str(package_path.resolve()),
-            }
-        )
+    try:
+        for path in root_path.rglob("*.py"):
+            try:
+                # Skip files in excluded directories
+                if any(part.startswith(".") for part in path.parts):
+                    continue
+                if any(fnmatch.fnmatch(str(path), pattern) for pattern in config.exclude_patterns):
+                    continue
 
-    # Recursive discovery with proper path resolution
-    for path in package_path.resolve().rglob("__init__.py"):
-        pkg_dir = path.parent
+                # Get package info
+                relative_path = path.relative_to(root_path)
+                package_name = ".".join(part for part in relative_path.parent.parts if part)
+                
+                if path.name == "__init__.py":
+                    if package_name:
+                        packages.append({
+                            "name": package_name,
+                            "path": str(path.parent),
+                            "type": "package"
+                        })
+                else:
+                    module_name = path.stem
+                    if package_name:
+                        module_name = f"{package_name}.{module_name}"
+                    packages.append({
+                        "name": module_name,
+                        "path": str(path),
+                        "type": "module"
+                    })
+                    
+            except Exception as e:
+                logger.warning(f"Failed to process {path}: {str(e)}")
+                continue
 
-        # Skip excluded paths using resolved paths
-        resolved_pkg = pkg_dir.resolve()
-        if any(
-            fnmatch.fnmatch(str(resolved_pkg), pattern)
-            for pattern in config.exclude_patterns
-        ):
-            continue
+    except Exception as e:
+        logger.error(f"Error scanning directory {root_path}: {str(e)}")
+        raise
 
-        # Handle versioned paths and nested packages
-        pkg_name = _derive_nested_package_name(resolved_pkg, package_path.resolve())
-        packages.append({"name": pkg_name, "path": str(resolved_pkg)})
+    if not packages:
+        logger.warning(f"No Python packages or modules found in {root_path}")
 
     return packages
 
@@ -150,12 +172,24 @@ def _is_excluded(path: Path, config: chewedConfig) -> bool:
 def _is_package(path: Path, config: chewedConfig) -> bool:
     """Determine if a path is a valid Python package"""
     # Check for basic package structure
-    if not any(path.glob("*.py")) and not config.allow_namespace_packages:
+    if not path.is_dir():  # Add this check
+        return False
+        
+    # Check for Python files
+    has_py_files = False
+    try:
+        has_py_files = any(path.glob("*.py"))
+    except Exception as e:
+        logger.warning(f"Error checking for Python files in {path}: {str(e)}")
+        return False
+
+    if not has_py_files and not config.allow_namespace_packages:
         return False
         
     # Check for __init__.py if namespace packages are not allowed
     if not config.allow_namespace_packages:
-        return (path / "__init__.py").exists()
+        init_py = path / "__init__.py"
+        return init_py.exists()
 
     # For namespace packages, check for __init__.py or allow empty directories
     init_py = path / "__init__.py"

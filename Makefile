@@ -114,7 +114,7 @@ docs: venv
 	$(call activate_venv)
 	@echo "📚 Generating project documentation..."
 	@echo "🕒 Timing documentation generation..."
-	@time $(PYTHON) -m chewed.cli ./src --local -o docs/ --verbose
+	@time $(PYTHON) -m chewed chew ./src -o docs --verbose
 	@echo "✅ Documentation generated in docs/"
 
 clean clear:

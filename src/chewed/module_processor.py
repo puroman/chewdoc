@@ -6,6 +6,7 @@ import logging
 from typing import Dict, List, Optional
 from chewed.config import chewedConfig
 from chewed.ast_utils import extract_docstrings, extract_type_info
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -13,40 +14,52 @@ logger = logging.getLogger(__name__)
 def process_modules(package_path: Path, config: chewedConfig) -> list:
     """Find and process Python modules in a package with better filtering"""
     modules = []
+    package_path = Path(package_path)
 
-    # Use configurable patterns for discovery
-    for pattern in config.module_discovery_patterns:
-        for p in package_path.glob(pattern):
-            if p.is_dir():
-                init_py = p / "__init__.py"
-                if not init_py.exists() and not config.allow_namespace_packages:
-                    continue
-                p = init_py
-
-            # Skip non-Python files and hidden directories
-            if p.suffix != ".py" or any(part.startswith(".") for part in p.parts):
+    try:
+        # Walk through the directory tree
+        for root, _, files in os.walk(package_path):
+            root_path = Path(root)
+            
+            # Skip hidden directories
+            if any(part.startswith('.') for part in root_path.parts):
                 continue
 
-            # Process the file/directory
-            try:
-                module = _process_single_file(p, package_path, config)
-                if module:
-                    modules.append(module)
-            except Exception as e:
-                logger.warning(f"Skipping {p}: {str(e)}")
+            # Process Python files
+            for file in files:
+                if not file.endswith('.py'):
+                    continue
+                    
+                file_path = root_path / file
+                
+                # Skip files in excluded patterns
+                if any(fnmatch.fnmatch(str(file_path), pattern) 
+                      for pattern in config.exclude_patterns):
+                    continue
 
-    # Handle namespace packages if allowed
-    if not modules and config.allow_namespace_packages:
-        logger.info(f"Processing namespace package at {package_path}")
-        modules.append(
-            {
+                try:
+                    # Process the file
+                    module = _process_single_file(file_path, package_path, config)
+                    if module:
+                        modules.append(module)
+                except Exception as e:
+                    logger.warning(f"Failed to process {file_path}: {str(e)}")
+                    continue
+
+        # Handle namespace packages if allowed and no modules found
+        if not modules and config.allow_namespace_packages:
+            logger.info(f"Processing namespace package at {package_path}")
+            modules.append({
                 "name": package_path.name,
                 "path": str(package_path),
                 "imports": [],
                 "internal_deps": [],
-                "type_info": {"classes": {}, "functions": {}},
-            }
-        )
+                "type_info": {"classes": {}, "functions": {}}
+            })
+
+    except Exception as e:
+        logger.error(f"Error processing modules in {package_path}: {str(e)}")
+        raise
 
     return modules
 
@@ -63,33 +76,54 @@ def _should_process(path: Path, config: chewedConfig) -> bool:
 def _create_module_data(
     file_path: Path, package_path: Path, config: chewedConfig
 ) -> dict | None:
-    """Create module data with robust error handling."""
+    """Create module data from a Python file"""
     try:
-        with open(file_path, "r") as f:
-            file_content = f.read()
-
-        # Validate syntax before parsing
+        # Ensure we're working with Path objects
+        file_path = Path(file_path)
+        package_path = Path(package_path)
+        
+        # Get relative path for module name
         try:
-            ast_tree = ast.parse(file_content)
-        except SyntaxError as e:
-            logger.warning(f"Syntax error in {file_path}: {e}")
+            rel_path = file_path.relative_to(package_path)
+            module_name = ".".join(part for part in rel_path.parent.parts + (rel_path.stem,) if part != ".")
+        except ValueError:
+            logger.error(f"File {file_path} is not under package path {package_path}")
             return None
 
-        # Validate module name
-        module_name = _get_module_name(file_path, package_path)
-        if not module_name:
-            logger.warning(f"Could not determine module name for {file_path}")
+        # Read and parse the file
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                tree = ast.parse(content)
+        except Exception as e:
+            logger.error(f"Failed to parse {file_path}: {str(e)}")
             return None
+
+        # Extract imports and dependencies
+        imports = []
+        internal_deps = []
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    imports.append(name.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.append(node.module)
+                    if not node.module.startswith('.'):
+                        # Check if it's an internal dependency
+                        if node.module.startswith(package_path.name):
+                            internal_deps.append(node.module)
 
         return {
             "name": module_name,
             "path": str(file_path),
-            "ast": ast_tree,
-            "internal_deps": _find_internal_deps(ast_tree, package_path.name),
-            "imports": _find_imports(ast_tree, package_path.name),
+            "imports": imports,
+            "internal_deps": internal_deps,
         }
+        
     except Exception as e:
-        logger.warning(f"Error processing module {file_path}: {e}")
+        logger.error(f"Error processing {file_path}: {str(e)}")
         return None
 
 
@@ -267,16 +301,26 @@ stdlib_modules = {
 
 def _process_single_file(
     py_file: Path, package_path: Path, config: chewedConfig
-) -> dict:
+) -> dict | None:
     """Process a single Python file and return module data"""
-    module_data = _create_module_data(py_file, package_path, config)
-    return (
-        {
-            "name": module_data["name"],
-            "path": str(py_file),
-            "imports": module_data["imports"],
-            "internal_deps": module_data["internal_deps"],
-        }
-        if module_data
-        else None
-    )
+    try:
+        py_file = Path(py_file)
+        package_path = Path(package_path)
+        
+        if not py_file.is_file():
+            logger.warning(f"Not a file: {py_file}")
+            return None
+            
+        module_data = _create_module_data(py_file, package_path, config)
+        if module_data:
+            return {
+                "name": module_data["name"],
+                "path": str(py_file),
+                "imports": module_data["imports"],
+                "internal_deps": module_data["internal_deps"],
+            }
+        return None
+        
+    except Exception as e:
+        logger.error(f"Failed to process {py_file}: {str(e)}")
+        return None

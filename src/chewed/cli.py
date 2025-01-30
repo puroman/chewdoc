@@ -39,17 +39,20 @@ def cli():
 def chew_command(source: str, output: str, local: bool, verbose: bool):
     """Generate documentation for a Python package."""
     try:
-        # Configure logging - moved before any operations
+        # Configure logging
         logging.basicConfig(
             level=logging.INFO if verbose else logging.WARNING,
             format='%(message)s',
-            force=True  # Force reconfiguration of the root logger
+            force=True
         )
         logger.setLevel(logging.INFO if verbose else logging.WARNING)
-            
+
         # Validate source exists if local
-        if local and not Path(source).exists():
-            raise click.BadParameter(f"Source path does not exist: {source}")
+        if local:
+            source_path = Path(source).resolve()
+            if not source_path.exists():
+                raise click.BadParameter(f"Source path does not exist: {source}")
+            source = str(source_path)
 
         # Load config
         config = load_config()
@@ -65,12 +68,12 @@ def chew_command(source: str, output: str, local: bool, verbose: bool):
         
         # Generate documentation
         output_path = Path(output)
-        output_path.mkdir(parents=True, exist_ok=True)  # Ensure output directory exists
+        output_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"📝 Generating documentation in {output_path}")
-        generate_docs(package_info, output_path, verbose=verbose)
+        generate_docs(package_info, output_path)
         
         if verbose:
-            logger.info(f"✅ Documentation generated successfully")
+            logger.info(f"✅ Documentation generated successfully in {output_path}")
             
     except Exception as e:
         logger.error(str(e))
