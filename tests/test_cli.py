@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 from chewed.cli import cli
 from chewed._version import __version__
 import ast
+from pathlib import Path
 
 
 def test_cli_local_package(tmp_path):
@@ -150,6 +151,8 @@ def test_cli_output_directory(tmp_path):
 
 def test_cli_pypi_package():
     runner = CliRunner()
-    with patch("chewed.cli.analyze_package"), patch("chewed.cli.generate_docs"):
+    with patch("chewed.metadata.get_pypi_metadata") as mock_pypi:
+        mock_pypi.return_value = Path("/tmp/mock-package")
         result = runner.invoke(cli, ["chew", "requests", "--pypi", "-o", "docs"])
         assert result.exit_code == 0
+        mock_pypi.assert_called_with("requests", None)

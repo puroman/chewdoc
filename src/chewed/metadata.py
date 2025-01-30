@@ -9,23 +9,41 @@ import os
 import requests
 
 
-def get_package_metadata(path: Path, is_local: bool, version: str = "0.0.0") -> dict:
-    """Get package metadata from local path or PyPI"""
-    meta = {
-        "name": path.name,
-        "version": version,
-        "source": "local" if is_local else "pypi",
-        "timestamp": datetime.now().isoformat(),
-    }
-
-    if not is_local:
-        try:
-            pypi_meta = get_pypi_metadata(path.name)
-            meta.update(pypi_meta)
-        except Exception as e:
-            logger.warning(f"Couldn't fetch PyPI metadata: {str(e)}")
-
-    return meta
+def get_package_metadata(
+    source: str, 
+    version: Optional[str] = None, 
+    is_local: bool = True
+) -> Dict[str, Any]:
+    """
+    Get package metadata for local or PyPI packages
+    
+    Args:
+        source (str): Package source path or name
+        version (Optional[str]): Package version
+        is_local (bool): Whether source is local or from PyPI
+    
+    Returns:
+        Dict[str, Any]: Package metadata
+    """
+    if is_local:
+        path = Path(source)
+        if not path.exists():
+            raise ValueError(f"Local package path does not exist: {source}")
+            
+        return {
+            "package": path.name,
+            "path": str(path.resolve()),
+            "version": version or "0.0.0",
+            "python_requires": ">=3.8"
+        }
+    else:
+        package_path = get_pypi_metadata(source, version)
+        return {
+            "package": source,
+            "path": str(package_path),
+            "version": version or "latest",
+            "python_requires": ">=3.8"
+        }
 
 
 def get_local_metadata(path: Path) -> dict:
@@ -107,38 +125,3 @@ def get_pypi_metadata(package_name: str, version: Optional[str] = None) -> Path:
 def _download_pypi_package(package_name: str, temp_dir: Path) -> Path:
     """Placeholder for PyPI package download functionality"""
     raise NotImplementedError("Remote package analysis is not yet implemented")
-
-
-def get_package_metadata(
-    source: str, 
-    version: Optional[str] = None, 
-    is_local: bool = True
-) -> Dict[str, Any]:
-    """
-    Get package metadata for local or PyPI packages
-    
-    Args:
-        source (str): Package source path or name
-        version (Optional[str]): Package version
-        is_local (bool): Whether source is local or from PyPI
-    
-    Returns:
-        Dict[str, Any]: Package metadata
-    """
-    if is_local:
-        path = Path(source)
-        return {
-            "package": path.name,
-            "path": str(path),
-            "version": version or "0.0.0",
-            "python_requires": ">=3.8"
-        }
-    else:
-        # Download PyPI package
-        package_path = get_pypi_metadata(source, version)
-        return {
-            "package": source,
-            "path": str(package_path),
-            "version": version or "latest",
-            "python_requires": ">=3.8"
-        }

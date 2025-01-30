@@ -51,35 +51,32 @@ def _find_imports(node: ast.AST, package_root: str) -> List[Dict[str, Any]]:
 def analyze_package(
     source: str, is_local: bool, config: chewedConfig, verbose: bool = False
 ) -> dict:
-    """Main analysis entry point with comprehensive error handling"""
+    """Main analysis entry point with proper error handling"""
     try:
-        package_path = Path(source).resolve()
+        package_path = Path(source)
         
         # Validate source path exists
         if not package_path.exists():
             raise ValueError(f"Source path does not exist: {source}")
 
-        # Discover packages with fallback mechanism
         packages = find_python_packages(package_path, config)
-        
-        # Namespace package fallback
-        if not packages and config.namespace_fallback:
-            packages = [{
-                "name": package_path.name,
-                "path": str(package_path)
-            }]
-        
         if not packages:
-            raise RuntimeError(f"No valid Python packages found in {source}")
+            # Use namespace package fallback if configured
+            if config.namespace_fallback:
+                packages = [{
+                    "name": package_path.name,
+                    "path": str(package_path)
+                }]
+            else:
+                raise RuntimeError(f"No valid Python packages found in {source}")
 
         # Process modules for each package
         all_modules = []
         for pkg in packages:
             try:
-                # Process modules with namespace package handling
                 modules = process_modules(Path(pkg["path"]), config)
                 
-                # Create minimal module for empty packages if allowed
+                # If no modules found, create a minimal module for namespace packages
                 if not modules and config.namespace_fallback:
                     modules = [{
                         "name": pkg["name"],
@@ -88,7 +85,7 @@ def analyze_package(
                         "internal_deps": []
                     }]
                 
-                if not modules and not config.allow_empty_packages:
+                if not modules:
                     raise RuntimeError(f"Package {pkg['name']} contains no valid modules")
                 
                 all_modules.extend(modules)
