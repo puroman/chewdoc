@@ -58,11 +58,11 @@
         {
             "pattern": "src/chewed/cli.py",
             "hints": [
-                "Handle both local and PyPI package sources",
-                "Provide clear error messages",
-                "Log verbose information when requested",
-                "Ensure output directory is created",
-                "Use Click for robust CLI argument handling"
+                "Use Click for all CLI argument handling",
+                "Keep entry point simple - delegate to CLI module",
+                "Verify argument consistency between click decorators and function params",
+                "Ensure command names match Makefile and documentation usage",
+                "Use explicit command names in click.command() decorators"
             ]
         },
         {
