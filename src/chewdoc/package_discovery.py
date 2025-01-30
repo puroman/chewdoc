@@ -16,10 +16,12 @@ def get_package_name(package_path: Path) -> Optional[str]:
         base_name = re.sub(r"[-_]\d+.*", "", parent_name)
         return f"{base_name}.{package_path.name}"
     
-    # Then check current directory name
-    self_match = version_pattern.search(package_path.name)
-    if self_match:
-        return package_path.name[:self_match.start()].replace("_", "-")
+    # Handle versioned directory structure
+    if "src" in package_path.parts:
+        version_part = next((p for p in package_path.parts if version_pattern.search(p)), None)
+        if version_part:
+            clean_name = re.sub(r"[-_]\d+.*", "", version_part)
+            return f"{clean_name}.{package_path.name}"
     
     # Existing fallback logic...
     for parent in package_path.parents:

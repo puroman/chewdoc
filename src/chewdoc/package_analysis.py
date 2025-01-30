@@ -34,7 +34,14 @@ def analyze_package(
         # Convert source to Path object early
         path = Path(str(source)).resolve()
         if not path.exists():
-            raise ValueError(f"Source path does not exist: {path}")
+            # Return empty structure instead of raising error
+            logger.warning(f"Source path does not exist: {path}")
+            return {
+                "package": _derive_package_name(path),
+                "modules": [],
+                "relationships": [],
+                "config": config
+            }
 
         if verbose and (start := datetime.now()):
             logger.info(f"🚀 Starting analysis at {start:%H:%M:%S.%f}"[:-3])

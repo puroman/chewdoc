@@ -273,14 +273,18 @@ class MystWriter:
         """Format usage examples with validation and proper indexing"""
         output = []
         for i, ex in enumerate(examples):
-            if not isinstance(ex, (str, dict)):
+            try:
+                if isinstance(ex, dict):
+                    code = ex.get("code", ex.get("content", ""))
+                else:
+                    code = str(ex)
+                    
+                if not code.strip():
+                    continue
+                    
+                output.append(f"### Example {i+1}\n```python\n{code}\n```")
+            except Exception as e:
                 logger.warning(f"Skipping invalid example at index {i} - type: {type(ex).__name__}")
-            elif isinstance(ex, (str, dict)) and "code" in str(ex):
-                try:
-                    code = ex["code"] if isinstance(ex, dict) else ex
-                    output.append(f"### Example {i+1}\n```python\n{code}\n```")
-                except KeyError:
-                    logger.warning(f"Skipping invalid example at index {i} - type: {type(ex).__name__}")
         return "\n\n".join(output) if output else ""
 
     def extract_docstrings(self, node: ast.AST) -> Dict[str, str]:

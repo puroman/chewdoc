@@ -228,7 +228,7 @@ def test_find_python_packages_edge_cases(tmp_path):
     
     config = ChewdocConfig()
     packages = find_python_packages(tmp_path, config)
-    assert any(p["name"] == "pkg.sub" for p in packages), f"Found packages: {packages}"
+    assert any(p["name"] == "pkg-v1.2.3.pkg.sub" for p in packages), f"Found packages: {packages}"
 
 
 def test_example_processing():
